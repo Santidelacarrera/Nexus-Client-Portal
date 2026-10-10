@@ -9,20 +9,29 @@ import { Badge, SeverityBadge } from "./ui/Badge";
 const STATUS_TONE = { open: "crit", mitigating: "warn", resolved: "mint" } as const;
 const RANK: Record<Severity, number> = { critical: 0, high: 1, medium: 2, low: 3 };
 
-export function FindingsTable({ initial }: { initial: Finding[] }) {
+export function FindingsTable({ initial, canEdit = false }: { initial: Finding[]; canEdit?: boolean }) {
   const live = useTelemetry((s) => s.liveFindings);
   const [sev, setSev] = useState<Severity | "all">("all");
   const [hideResolved, setHideResolved] = useState(true);
   const [open, setOpen] = useState<string | null>(null);
+  const [override, setOverride] = useState<Record<string, Finding["status"]>>({});
+  const [error, setError] = useState<string | null>(null);
+
+  async function setStatus(id: string, status: Finding["status"]) {
+    setError(null);
+    const r = await fetch(`/api/backend/security/findings/${id}`, { method: "PATCH", body: JSON.stringify({ status }) });
+    if (r.ok) setOverride((o) => ({ ...o, [id]: status }));
+    else setError(r.status === 403 ? "Your role cannot change findings." : "Update failed.");
+  }
 
   const rows = useMemo(() => {
     const seen = new Set(initial.map((f) => f.id));
-    const merged = [...live.filter((f) => !seen.has(f.id)), ...initial];
+    const merged = [...live.filter((f) => !seen.has(f.id)), ...initial].map((f) => (override[f.id] ? { ...f, status: override[f.id] } : f));
     return merged
       .filter((f) => (sev === "all" || f.severity === sev) && (!hideResolved || f.status !== "resolved"))
       .sort((a, b) => RANK[a.severity] - RANK[b.severity] || +new Date(b.detected_at) - +new Date(a.detected_at))
       .slice(0, 80);
-  }, [initial, live, sev, hideResolved]);
+  }, [initial, live, sev, hideResolved, override]);
 
   return (
     <div>
@@ -30,10 +39,14 @@ export function FindingsTable({ initial }: { initial: Finding[] }) {
         {(["all", ...SEVERITY_ORDER] as const).map((s) => (
           <button key={s} onClick={() => setSev(s)} aria-pressed={sev === s} className={`btn ${sev === s ? "" : "btn-ghost"} !px-2.5 !py-1`}>{s}</button>
         ))}
-        <label className="ml-auto flex items-center gap-2 font-mono text-[11px] uppercase tracking-wider text-slate-400">
+        {canEdit && (
+          <a className="btn btn-ghost !px-2.5 !py-1 ml-auto" href="/api/backend/security/findings.csv">Export CSV</a>
+        )}
+        <label className={`${canEdit ? "" : "ml-auto "}flex items-center gap-2 font-mono text-[11px] uppercase tracking-wider text-slate-400`}>
           <input type="checkbox" checked={hideResolved} onChange={(e) => setHideResolved(e.target.checked)} className="accent-cyan-500" /> hide resolved
         </label>
       </div>
+      {error && <p role="alert" className="mb-2 font-mono text-xs text-crit">{error}</p>}
       <div className="overflow-x-auto">
         <table className="w-full min-w-[640px]" data-testid="findings-table">
           <thead><tr className="border-b border-white/5"><th className="th">Sev</th><th className="th">Class</th><th className="th">Endpoint</th><th className="th">CVSS</th><th className="th">Status</th><th className="th">Detected</th></tr></thead>
@@ -53,6 +66,14 @@ export function FindingsTable({ initial }: { initial: Finding[] }) {
                     <td colSpan={6} className="px-4 py-3">
                       <p className="text-sm text-slate-300">{f.title}</p>
                       <p className="mt-1 text-sm text-slate-500">{f.description}</p>
+                      {canEdit && (
+                        <div className="mt-3 flex items-center gap-2">
+                          <span className="panel-title">Triage</span>
+                          {(["open", "mitigating", "resolved"] as const).map((s) => (
+                            <button key={s} onClick={() => setStatus(f.id, s)} aria-pressed={f.status === s} className={`btn ${f.status === s ? "" : "btn-ghost"} !px-2.5 !py-1`}>{s}</button>
+                          ))}
+                        </div>
+                      )}
                       <pre className="mt-2 overflow-x-auto rounded border border-white/5 bg-black/40 p-3 font-mono text-[11px] text-mint">{JSON.stringify(f.evidence, null, 2)}</pre>
                     </td>
                   </tr>

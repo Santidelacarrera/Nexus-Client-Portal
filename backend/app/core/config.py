@@ -43,6 +43,7 @@ class Settings(BaseSettings):
     rate_limit_ip_per_minute: int = 240
     rate_limit_tenant_per_minute: int = 600
     rate_limit_login_per_minute: int = 10
+    login_max_failures: int = 5
     trusted_proxies: bool = False  # honour X-Forwarded-For (behind Envoy)
 
     telemetry_simulator: bool = False

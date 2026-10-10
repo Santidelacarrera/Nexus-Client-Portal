@@ -56,6 +56,28 @@ class Store:
                 self._mem = {k: v for k, v in self._mem.items() if v[1] > now}
             return count
 
+    async def count(self, key: str) -> int:
+        if self.redis:
+            try:
+                return int(await self.redis.get(key) or 0)
+            except Exception:  # noqa: BLE001
+                log.warning("Redis error in count; using memory fallback")
+        async with self._lock:
+            c, reset = self._mem.get(key, (0, 0.0))
+            return c if reset > time.monotonic() else 0
+
+    async def exists(self, key: str) -> bool:
+        return await self.count(key) > 0
+
+    async def delete(self, key: str) -> None:
+        if self.redis:
+            try:
+                await self.redis.delete(key)
+            except Exception:  # noqa: BLE001
+                pass
+        async with self._lock:
+            self._mem.pop(key, None)
+
     async def set_once(self, key: str, ttl: int) -> bool:
         """True the first time a key is seen (used for single-use WS tickets)."""
         if self.redis:

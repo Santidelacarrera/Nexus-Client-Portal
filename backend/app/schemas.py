@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from datetime import datetime
+from typing import Literal
 
 from pydantic import BaseModel, ConfigDict, Field
 
@@ -55,6 +56,10 @@ class FindingOut(ORM):
     cvss: float
     detected_at: datetime
     source: str
+
+
+class FindingStatusUpdate(BaseModel):
+    status: Literal["open", "mitigating", "resolved"]
 
 
 class EndpointOut(ORM):

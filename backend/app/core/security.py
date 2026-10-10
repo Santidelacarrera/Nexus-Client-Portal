@@ -153,6 +153,8 @@ class AuthMiddleware(BaseHTTPMiddleware):
             principal = decode_token(token)
         except jwt.PyJWTError:
             return JSONResponse({"detail": "Invalid or expired token"}, status_code=401, headers={"WWW-Authenticate": "Bearer"})
+        if await get_store().exists(f"revoked:{principal.jti}"):
+            return JSONResponse({"detail": "Session revoked"}, status_code=401, headers={"WWW-Authenticate": "Bearer"})
         request.state.principal = principal
         minute = int(time.time() // 60)
         if await get_store().incr_window(f"rl:tenant:{principal.tenant_id}:{minute}", 60) > get_settings().rate_limit_tenant_per_minute:

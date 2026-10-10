@@ -34,3 +34,26 @@ test("rejects wrong credentials", async ({ page }) => {
   await page.getByRole("button", { name: /establish session/i }).click();
   await expect(page.locator("#login-error")).toContainText(/invalid/i);
 });
+
+test("triage a finding, export CSV, and logout revokes the session", async ({ page, context }) => {
+  await page.goto("/login");
+  await page.getByLabel("Identity").fill(EMAIL);
+  await page.getByLabel("Passphrase").fill(PASSWORD);
+  await page.getByRole("button", { name: /establish session/i }).click();
+  await page.waitForURL(/overview/);
+  const stolen = (await context.cookies()).find((c) => c.name === "nexus_session")!.value;
+
+  await page.goto("/security");
+  await page.getByTestId("findings-table").locator("tbody tr").first().click();
+  await page.getByRole("button", { name: "resolved", exact: true }).click();
+  await expect(page.getByTestId("findings-table")).toBeVisible();
+  const csv = await page.request.get("/api/backend/security/findings.csv");
+  expect(csv.status()).toBe(200);
+  expect(csv.headers()["content-type"]).toContain("text/csv");
+
+  await page.getByRole("button", { name: /sign out/i }).click();
+  await expect(page).toHaveURL(/login/);
+  // The old bearer token must be dead server-side, not merely forgotten by the browser.
+  const replay = await page.request.get("http://localhost:8000/api/v1/overview", { headers: { Authorization: `Bearer ${stolen}` } });
+  expect(replay.status()).toBe(401);
+});

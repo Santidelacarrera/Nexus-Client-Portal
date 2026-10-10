@@ -12,7 +12,8 @@ const TONE = { critical: "crit", high: "warn", medium: "cyan", low: "slate" } as
 const ST = { documented: "mint", shadow: "crit", drift: "warn" } as const;
 
 export default async function SecurityPage() {
-  const [findings, endpoints, ov] = await Promise.all([
+  const [me, findings, endpoints, ov] = await Promise.all([
+    backend<{ role: string }>("/auth/me"),
     backend<Finding[]>("/security/findings?limit=200"),
     backend<ApiEndpoint[]>("/security/endpoints"),
     backend<Overview>("/overview"),
@@ -27,7 +28,7 @@ export default async function SecurityPage() {
         ))}
       </div>
       <div className="grid gap-4 xl:grid-cols-3">
-        <Panel title="Findings (BOLA · IDOR · drift)" className="xl:col-span-2"><FindingsTable initial={findings} /></Panel>
+        <Panel title="Findings (BOLA · IDOR · drift)" className="xl:col-span-2"><FindingsTable initial={findings} canEdit={me.role !== "viewer"} /></Panel>
         <div className="space-y-4">
           <Panel title="Live detections"><LiveFeed kinds={["finding"]} max={8} /></Panel>
           <Panel title={`Shadow & drifted endpoints (${flagged.length})`}>

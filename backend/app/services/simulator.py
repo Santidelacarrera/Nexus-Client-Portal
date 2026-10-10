@@ -33,9 +33,14 @@ def _tick(tenant_id: str, slug: str, rng: random.Random) -> dict:
         if roll < 0.6:
             cluster, namespaces = rng.choice(g.CLUSTERS)
             s = g.make_finops_sample(rng, tenant_id, now, cluster, rng.choice(namespaces))
+            hourly_saved = s.saved
+            # A live tick covers ~one interval, not a whole hour: persist prorated cost so the
+            # current day is not inflated relative to the hourly seeded history.
+            frac = 1 / 60
+            s.baseline_cost, s.actual_cost = round(s.baseline_cost * frac, 4), round(s.actual_cost * frac, 4)
             db.add(s)
             db.commit()
-            return {"type": "finops", "data": {"cluster": s.cluster, "namespace": s.namespace, "saved_usd": s.saved, "replicas_before": s.replicas_before, "replicas_after": s.replicas_after, "ts": now.isoformat(), "totals": finops_totals(db, 30)}}
+            return {"type": "finops", "data": {"cluster": s.cluster, "namespace": s.namespace, "saved_usd": hourly_saved, "replicas_before": s.replicas_before, "replicas_after": s.replicas_after, "ts": now.isoformat(), "totals": finops_totals(db, 30)}}
         if roll < 0.85:
             q = g.make_rag_query(rng, tenant_id, domain, now)
             db.add(q)

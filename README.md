@@ -82,6 +82,10 @@ deploy/    docker-compose.yml · postgres/init-roles.sh
 | Webhooks de agentes | **HMAC-SHA256** con clave por tenant sobre `timestamp.body`, comparación en tiempo constante, ventana anti-replay de 5 min | `api/routes/webhooks.py` |
 | WebSocket | ticket JWT de 30 s con `aud=nexus-ws`, **un solo uso**, comprobación de `Origin`; el canal se deriva del tenant verificado (no hay forma de suscribirse a otro) | `api/routes/ws.py` |
 | BFF / CSRF | cookie `httpOnly; SameSite=Strict; Secure` (prod) + verificación `Origin` en mutaciones + allow-list de rutas | `frontend/app/api/*` |
+| Sesión revocable | `POST /auth/logout` deniega el `jti` del token en Redis hasta su expiración; el middleware lo comprueba en cada request (un token robado deja de servir tras cerrar sesión) | `api/routes/auth.py`, `core/security.py` |
+| Anti fuerza bruta | rate-limit por IP **y** bloqueo por identidad (5 fallos/15 min, existan o no, se resetea al acertar) | `api/routes/auth.py` |
+| Triage con trazabilidad | `PATCH /security/findings/{id}` (owner/analyst) registra `finding.status_changed` (de→a) en la cadena de auditoría | `api/routes/security.py` |
+| Export CSV seguro | `GET /security/findings.csv` neutraliza inyección de fórmulas (`=`,`+`,`-`,`@`) y queda auditado | `api/routes/security.py` |
 | RBAC | `owner` / `analyst` / `viewer` (informes: owner+analyst; auditoría: owner) | `api/deps.py` |
 
 ### Endurecimiento de despliegue incluido
@@ -100,7 +104,7 @@ Ver [`.env.example`](.env.example) (compose) y [`backend/app/core/config.py`](ba
 
 ## API (resumen)
 
-`POST /api/v1/auth/login` · `GET /auth/me` · `POST /auth/ws-ticket` · `GET /overview` · `GET /security/{summary,findings,endpoints}` · `GET /finops/{summary,timeseries}` · `GET /rag/{summary,queries,queries/{id}}` · `GET /reports` · `POST /reports/generate` · `GET /reports/{id}/{download,verify}` · `GET /reports/public-key` (público) · `GET /audit`, `/audit/verify` (owner) · `POST /webhooks/agents` (HMAC) · `WS /ws/telemetry?ticket=`
+`POST /api/v1/auth/login` · `POST /auth/logout` · `GET /auth/me` · `POST /auth/ws-ticket` · `GET /overview` · `GET /security/{summary,findings,findings.csv,endpoints}` · `PATCH /security/findings/{id}` · `GET /finops/{summary,timeseries}` · `GET /rag/{summary,queries,queries/{id}}` · `GET /reports` · `POST /reports/generate` · `GET /reports/{id}/{download,verify}` · `GET /reports/public-key` (público) · `GET /audit`, `/audit/verify` (owner) · `POST /webhooks/agents` (HMAC) · `WS /ws/telemetry?ticket=`
 
 Ingesta desde un agente (ejemplo):
 ```python
@@ -115,7 +119,7 @@ requests.post(f"{API}/api/v1/webhooks/agents", data=body, headers={"X-Nexus-Tena
 ## Pruebas
 
 ```bash
-cd backend  && pytest -q                  # 26 tests (SQLite) — auth, aislamiento, RBAC, firma, cadena de auditoría, webhooks, WS
+cd backend  && pytest -q                  # 30 tests (SQLite) — auth, logout/lockout, aislamiento, RBAC, triage, CSV, firma, cadena de auditoría, webhooks, WS
 cd frontend && npm test                   # Jest + Testing Library
 cd frontend && E2E_PASSWORD=… npm run test:e2e   # Playwright contra el stack levantado
 ```
@@ -128,10 +132,10 @@ Para validar **RLS real** (CI lo hace con un servicio PostgreSQL): crea los role
 
 Esto es una implementación completa y probada del núcleo descrito, **pero no todo el texto del brief está construido**:
 
-* **Datos simulados:** los agentes reales (ShadowAPI, KubeCost, ContextRAG) no están conectados. El *Seeder* y el *simulador* generan datos plausibles; la ingesta real entra por el webhook HMAC. El índice NLI es un dato recibido, no se calcula aquí. El simulador añade muestras horarias cada pocos segundos, por lo que el día actual en FinOps se infla (solo demo).
+* **Datos simulados:** los agentes reales (ShadowAPI, KubeCost, ContextRAG) no están conectados. El *Seeder* y el *simulador* generan datos plausibles; la ingesta real entra por el webhook HMAC. El índice NLI es un dato recibido, no se calcula aquí. Las muestras en vivo del simulador se prorratean para no distorsionar el histórico.
 * **Sin WebAuthn/Passkeys ni mTLS en la app:** la autenticación es contraseña (Argon2id) + JWT RS256. mTLS debe terminarse en Envoy/WAF (no se incluye config de Envoy ni manifiestos Kubernetes).
 * **Sin "Zero-Knowledge"**: el servidor descifra informes para servirlos; el cifrado es en reposo con claves por tenant.
-* **Sin gRPC ni ClickHouse**; sin refresh tokens ni revocación de JWT antes de su expiración (15 min); sin MFA.
+* **Sin gRPC ni ClickHouse**; sin refresh tokens (la sesión dura 15 min y luego hay que reingresar) ni MFA.
 * **RLS y el flag `app.bypass_rls`:** el login, el seeder y el simulador necesitan leer entre tenants, y lo hacen con una variable de sesión `app.bypass_rls`. La protege que solo el código de la app emite SQL; una inyección SQL con control de `set_config` podría activarla. Un endurecimiento posible es un rol/función `SECURITY DEFINER` dedicado para el login.
 * **Migraciones:** el esquema se crea con `create_all` + DDL idempotente (`app.db.bootstrap`); no hay Alembic.
 * `docker compose up` no pudo ejecutarse en el entorno donde se desarrolló (sin demonio Docker); cada pieza se validó por separado: arranque en modo `production` con claves generadas por `genkeys`, PostgreSQL 16 con roles sin privilegios, Redis, Next.js en build de producción y Playwright (login, navegación, generación/verificación de informe, stream WS en vivo, sin errores de CSP ni de hidratación en consola).

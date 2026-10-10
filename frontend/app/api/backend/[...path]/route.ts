@@ -14,7 +14,8 @@ async function handle(req: Request, { params }: { params: { path: string[] } }) 
   const url = new URL(req.url);
   const upstream = await fetch(`${API}/${path}${url.search}`, {
     method: req.method,
-    headers: { Authorization: `Bearer ${token}` },
+    headers: { Authorization: `Bearer ${token}`, ...(req.method === "PATCH" ? { "Content-Type": "application/json" } : {}) },
+    body: req.method === "PATCH" ? await req.text() : undefined,
     cache: "no-store",
   });
   const headers = new Headers();
@@ -28,3 +29,4 @@ async function handle(req: Request, { params }: { params: { path: string[] } }) 
 
 export const GET = handle;
 export const POST = handle;
+export const PATCH = handle;

@@ -154,3 +154,52 @@ def test_websocket_ticket_flow(client, acme):
     with pytest.raises(WebSocketDisconnect):  # foreign origin
         with client.websocket_connect(f"/ws/telemetry?ticket={t2}", headers={"origin": "https://evil.example"}):
             pass
+
+
+def test_logout_revokes_token(client):
+    from tests.conftest import _login
+
+    d = _login(client, "analyst@acme-fintech.example")
+    h = {"Authorization": f"Bearer {d['access_token']}"}
+    assert client.get("/api/v1/overview", headers=h).status_code == 200
+    assert client.post("/api/v1/auth/logout", headers=h).status_code == 204
+    assert client.get("/api/v1/overview", headers=h).status_code == 401
+
+
+def test_account_lockout_is_per_identity(client, settings):
+    for _ in range(settings.login_max_failures):
+        assert client.post("/api/v1/auth/login", json={"email": "victim@nowhere.example", "password": "x"}).status_code == 401
+    r = client.post("/api/v1/auth/login", json={"email": "victim@nowhere.example", "password": "x"})
+    assert r.status_code == 429 and "retry-after" in r.headers
+    # other identities are unaffected, and a real lockout also stops the correct password
+    assert client.post("/api/v1/auth/login", json={"email": "ciso@acme-fintech.example", "password": "Test-Password-123!"}).status_code == 200
+    for _ in range(settings.login_max_failures):
+        client.post("/api/v1/auth/login", json={"email": "viewer@acme-fintech.example", "password": "bad"})
+    assert client.post("/api/v1/auth/login", json={"email": "viewer@acme-fintech.example", "password": "Test-Password-123!"}).status_code == 429
+    import anyio
+    from app.core.store import get_store
+
+    anyio.run(get_store().delete, "lock:viewer@acme-fintech.example")  # unlock for other tests
+
+
+def test_finding_triage_workflow_and_audit(client, acme, acme_viewer, helix):
+    f = client.get("/api/v1/security/findings?status=open&limit=1", headers=acme["h"]).json()[0]
+    url = f"/api/v1/security/findings/{f['id']}"
+    assert client.patch(url, json={"status": "resolved"}, headers=acme_viewer["h"]).status_code == 403
+    assert client.patch(url, json={"status": "bogus"}, headers=acme["h"]).status_code == 422
+    assert client.patch(url, json={"status": "resolved"}, headers=helix["h"]).status_code == 404  # cross-tenant
+    r = client.patch(url, json={"status": "mitigating"}, headers=acme["h"])
+    assert r.status_code == 200 and r.json()["status"] == "mitigating"
+    log = client.get("/api/v1/audit?limit=20", headers=acme["h"]).json()
+    assert any(e["action"] == "finding.status_changed" and e["resource"] == f["id"] for e in log)
+    assert client.get("/api/v1/audit/verify", headers=acme["h"]).json()["valid"]
+
+
+def test_csv_export_neutralises_formulas_and_is_role_gated(client, acme, acme_viewer):
+    tid = acme["tenant"]["id"]
+    raw, h = _hook(tid, {**PAYLOAD, "tenant_id": tid, "title": "=HYPERLINK(\"http://evil\")", "endpoint": "/csv-test"})
+    assert client.post("/api/v1/webhooks/agents", content=raw, headers=h).status_code == 202
+    assert client.get("/api/v1/security/findings.csv", headers=acme_viewer["h"]).status_code == 403
+    r = client.get("/api/v1/security/findings.csv", headers=acme["h"])
+    assert r.status_code == 200 and r.headers["content-type"].startswith("text/csv")
+    assert "'=HYPERLINK" in r.text and ",=HYPERLINK" not in r.text
