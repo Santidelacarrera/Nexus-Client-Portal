@@ -25,6 +25,7 @@ class Settings(BaseSettings):
     jwt_public_key_path: str | None = None
     jwt_issuer: str = "nexus-client-portal"
     jwt_ttl_minutes: int = 15
+    session_max_hours: int = 8  # absolute cap, enforced across refreshes
 
     # Agency report-signing key (RSA) — signs executive reports.
     report_signing_key: str | None = None

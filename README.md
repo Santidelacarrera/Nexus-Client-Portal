@@ -70,6 +70,7 @@ deploy/    docker-compose.yml · postgres/init-roles.sh
 | Control | Implementación | Dónde |
 |---|---|---|
 | Aislamiento por tenant — **3 capas** | (1) **RLS** `ENABLE`+`FORCE` con política `tenant_id = current_setting('app.tenant_id')` y `WITH CHECK`; fail-closed si no hay tenant. (2) Filtro ORM global (`with_loader_criteria`) en todo SELECT. (3) Guard en `before_flush` contra escrituras cross-tenant. El tenant sale **solo** del claim `tid` del JWT verificado | `db/bootstrap.py`, `db/session.py` |
+| El rol de la app **no puede cruzar tenants** | las políticas RLS **no tienen cláusula de bypass**: ni con SQL arbitrario ni forzando variables de sesión el rol `nexus_app` ve otro tenant (test dedicado). El login usa una función `SECURITY DEFINER` (`nexus_auth_user`) que devuelve una sola fila por email exacto; el seeder/simulador usan el rol owner | `db/bootstrap.py`, `api/routes/auth.py` |
 | La app **no** es superusuario | rol `nexus_app` `NOSUPERUSER NOBYPASSRLS` (un superusuario saltaría RLS aun con `FORCE`). El esquema lo aplica otro rol (`DATABASE_ADMIN_URL`) | `deploy/postgres/init-roles.sh` |
 | JWT **RS256**, vida 15 min | algoritmo fijado (sin `none`/confusión HS256), `iss`/`aud`/`exp`/`jti` obligatorios | `core/security.py` |
 | Contraseñas **Argon2id** | + verificación ficticia para usuarios inexistentes (anti-enumeración por tiempo) | `core/security.py` |
@@ -82,6 +83,7 @@ deploy/    docker-compose.yml · postgres/init-roles.sh
 | Webhooks de agentes | **HMAC-SHA256** con clave por tenant sobre `timestamp.body`, comparación en tiempo constante, ventana anti-replay de 5 min | `api/routes/webhooks.py` |
 | WebSocket | ticket JWT de 30 s con `aud=nexus-ws`, **un solo uso**, comprobación de `Origin`; el canal se deriva del tenant verificado (no hay forma de suscribirse a otro) | `api/routes/ws.py` |
 | BFF / CSRF | cookie `httpOnly; SameSite=Strict; Secure` (prod) + verificación `Origin` en mutaciones + allow-list de rutas | `frontend/app/api/*` |
+| Sesión deslizante | `POST /auth/refresh` rota el token (el anterior queda revocado), conserva `auth_time` y respeta un tope absoluto (`SESSION_MAX_HOURS`, 8 h); un cambio de rol o desactivación fuerza reingreso | `api/routes/auth.py` |
 | Sesión revocable | `POST /auth/logout` deniega el `jti` del token en Redis hasta su expiración; el middleware lo comprueba en cada request (un token robado deja de servir tras cerrar sesión) | `api/routes/auth.py`, `core/security.py` |
 | Anti fuerza bruta | rate-limit por IP **y** bloqueo por identidad (5 fallos/15 min, existan o no, se resetea al acertar) | `api/routes/auth.py` |
 | Triage con trazabilidad | `PATCH /security/findings/{id}` (owner/analyst) registra `finding.status_changed` (de→a) en la cadena de auditoría | `api/routes/security.py` |
@@ -104,7 +106,7 @@ Ver [`.env.example`](.env.example) (compose) y [`backend/app/core/config.py`](ba
 
 ## API (resumen)
 
-`POST /api/v1/auth/login` · `POST /auth/logout` · `GET /auth/me` · `POST /auth/ws-ticket` · `GET /overview` · `GET /security/{summary,findings,findings.csv,endpoints}` · `PATCH /security/findings/{id}` · `GET /finops/{summary,timeseries}` · `GET /rag/{summary,queries,queries/{id}}` · `GET /reports` · `POST /reports/generate` · `GET /reports/{id}/{download,verify}` · `GET /reports/public-key` (público) · `GET /audit`, `/audit/verify` (owner) · `POST /webhooks/agents` (HMAC) · `WS /ws/telemetry?ticket=`
+`POST /api/v1/auth/login` · `POST /auth/logout` · `POST /auth/refresh` · `GET /auth/me` · `POST /auth/ws-ticket` · `GET /overview` · `GET /security/{summary,findings,findings.csv,endpoints}` · `PATCH /security/findings/{id}` · `GET /finops/{summary,timeseries}` · `GET /rag/{summary,queries,queries/{id}}` · `GET /reports` · `POST /reports/generate` · `GET /reports/{id}/{download,verify}` · `GET /reports/public-key` (público) · `GET /audit`, `/audit/verify` (owner) · `POST /webhooks/agents` (HMAC) · `WS /ws/telemetry?ticket=`
 
 Ingesta desde un agente (ejemplo):
 ```python
@@ -119,7 +121,7 @@ requests.post(f"{API}/api/v1/webhooks/agents", data=body, headers={"X-Nexus-Tena
 ## Pruebas
 
 ```bash
-cd backend  && pytest -q                  # 30 tests (SQLite) — auth, logout/lockout, aislamiento, RBAC, triage, CSV, firma, cadena de auditoría, webhooks, WS
+cd backend  && pytest -q                  # 34 tests (SQLite; +RLS real si hay PostgreSQL) — auth, logout/lockout, aislamiento, RBAC, triage, CSV, firma, cadena de auditoría, webhooks, WS
 cd frontend && npm test                   # Jest + Testing Library
 cd frontend && E2E_PASSWORD=… npm run test:e2e   # Playwright contra el stack levantado
 ```
@@ -135,7 +137,7 @@ Esto es una implementación completa y probada del núcleo descrito, **pero no t
 * **Datos simulados:** los agentes reales (ShadowAPI, KubeCost, ContextRAG) no están conectados. El *Seeder* y el *simulador* generan datos plausibles; la ingesta real entra por el webhook HMAC. El índice NLI es un dato recibido, no se calcula aquí. Las muestras en vivo del simulador se prorratean para no distorsionar el histórico.
 * **Sin WebAuthn/Passkeys ni mTLS en la app:** la autenticación es contraseña (Argon2id) + JWT RS256. mTLS debe terminarse en Envoy/WAF (no se incluye config de Envoy ni manifiestos Kubernetes).
 * **Sin "Zero-Knowledge"**: el servidor descifra informes para servirlos; el cifrado es en reposo con claves por tenant.
-* **Sin gRPC ni ClickHouse**; sin refresh tokens (la sesión dura 15 min y luego hay que reingresar) ni MFA.
-* **RLS y el flag `app.bypass_rls`:** el login, el seeder y el simulador necesitan leer entre tenants, y lo hacen con una variable de sesión `app.bypass_rls`. La protege que solo el código de la app emite SQL; una inyección SQL con control de `set_config` podría activarla. Un endurecimiento posible es un rol/función `SECURITY DEFINER` dedicado para el login.
+* **Sin gRPC ni ClickHouse**; sin MFA.
+* **Credenciales admin en la API:** el simulador demo y el seeder usan el rol owner (`DATABASE_ADMIN_URL`). En producción desactiva ambos (`TELEMETRY_SIMULATOR=false`, `SEED_ON_START=false`); el entrypoint solo necesita la URL admin para aplicar el esquema, y puedes quitarla del servicio tras el primer arranque / ejecutar `app.db.bootstrap` como job aparte.
 * **Migraciones:** el esquema se crea con `create_all` + DDL idempotente (`app.db.bootstrap`); no hay Alembic.
 * `docker compose up` no pudo ejecutarse en el entorno donde se desarrolló (sin demonio Docker); cada pieza se validó por separado: arranque en modo `production` con claves generadas por `genkeys`, PostgreSQL 16 con roles sin privilegios, Redis, Next.js en build de producción y Playwright (login, navegación, generación/verificación de informe, stream WS en vivo, sin errores de CSP ni de hidratación en consola).

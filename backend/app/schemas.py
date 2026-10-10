@@ -38,6 +38,11 @@ class LoginResponse(BaseModel):
     tenant: TenantOut
 
 
+class RefreshResponse(BaseModel):
+    access_token: str
+    expires_in: int
+
+
 class WsTicket(BaseModel):
     ticket: str
     expires_in: int

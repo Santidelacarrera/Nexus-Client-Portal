@@ -45,9 +45,10 @@ class Principal:
     role: str
     email: str
     jti: str
+    auth_time: int = 0  # unix time of the original password login
 
 
-def create_token(user_id: str, tenant_id: str, role: str, email: str, *, audience: str = API_AUDIENCE, ttl_seconds: int | None = None) -> tuple[str, int]:
+def create_token(user_id: str, tenant_id: str, role: str, email: str, *, audience: str = API_AUDIENCE, ttl_seconds: int | None = None, auth_time: int | None = None) -> tuple[str, int]:
     s = get_settings()
     ttl = ttl_seconds or s.jwt_ttl_minutes * 60
     now = int(time.time())
@@ -59,6 +60,7 @@ def create_token(user_id: str, tenant_id: str, role: str, email: str, *, audienc
         "role": role,
         "email": email,
         "jti": uuid.uuid4().hex,
+        "auth_time": auth_time or now,
         "iat": now,
         "nbf": now,
         "exp": now + ttl,
@@ -76,7 +78,7 @@ def decode_token(token: str, audience: str = API_AUDIENCE) -> Principal:
         issuer=get_settings().jwt_issuer,
         options={"require": ["exp", "iat", "sub", "tid", "jti"]},
     )
-    return Principal(c["sub"], c["tid"], c.get("role", "viewer"), c.get("email", ""), c["jti"])
+    return Principal(c["sub"], c["tid"], c.get("role", "viewer"), c.get("email", ""), c["jti"], int(c.get("auth_time", c["iat"])))
 
 
 # ---------------------------------------------------------------- client IP

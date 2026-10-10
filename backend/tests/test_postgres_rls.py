@@ -35,3 +35,22 @@ def test_rls_blocks_cross_tenant_reads_and_writes():
         with app.begin() as c:
             c.execute(text("SELECT set_config('app.tenant_id','t-a',true)"))
             c.execute(text("DELETE FROM audit_logs"))
+
+
+def test_app_role_cannot_escape_rls_even_by_setting_flags():
+    app = create_engine(APP)
+    with app.begin() as c:
+        c.execute(text("SELECT set_config('app.bypass_rls','on',true), set_config('app.tenant_id','t-b',true)"))
+        assert c.execute(text("SELECT count(*) FROM api_findings WHERE tenant_id='t-a'")).scalar() == 0
+        assert c.execute(text("SELECT count(*) FROM tenants WHERE id='t-a'")).scalar() == 0
+    with pytest.raises(Exception):  # tenants are not writable by the app role at all
+        with app.begin() as c:
+            c.execute(text("INSERT INTO tenants (id,name,slug,plan,created_at) VALUES ('evil','e','evil','p',now())"))
+
+
+def test_login_lookup_function_exposes_one_row_by_exact_email():
+    app = create_engine(APP)
+    with app.begin() as c:
+        rows = c.execute(text("SELECT * FROM nexus_auth_user('nobody@nowhere.example')")).all()
+        assert rows == []
+        assert c.execute(text("SELECT count(*) FROM users")).scalar() == 0

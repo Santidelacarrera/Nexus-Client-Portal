@@ -57,3 +57,18 @@ test("triage a finding, export CSV, and logout revokes the session", async ({ pa
   const replay = await page.request.get("http://localhost:8000/api/v1/overview", { headers: { Authorization: `Bearer ${stolen}` } });
   expect(replay.status()).toBe(401);
 });
+
+test("session refresh rotates the cookie and keeps the user signed in", async ({ page, context }) => {
+  await page.goto("/login");
+  await page.getByLabel("Identity").fill(EMAIL);
+  await page.getByLabel("Passphrase").fill(PASSWORD);
+  await page.getByRole("button", { name: /establish session/i }).click();
+  await page.waitForURL(/overview/);
+  const before = (await context.cookies()).find((c) => c.name === "nexus_session")!.value;
+  const r = await page.request.post("/api/session/refresh", { headers: { Origin: "http://localhost:3000" } });
+  expect(r.status()).toBe(200);
+  const after = (await context.cookies()).find((c) => c.name === "nexus_session")!.value;
+  expect(after).not.toBe(before);
+  await page.goto("/security");
+  await expect(page.getByTestId("findings-table")).toBeVisible();
+});

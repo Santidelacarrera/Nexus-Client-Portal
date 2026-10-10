@@ -24,6 +24,7 @@ class CrossTenantError(RuntimeError):
 
 
 _engine: Engine | None = None
+_system_engine: Engine | None = None
 
 
 def _make_engine(url: str) -> Engine:
@@ -44,9 +45,21 @@ def get_engine() -> Engine:
     return _engine
 
 
+def get_system_engine() -> Engine:
+    """Owner-role engine for cross-tenant maintenance (seed, demo simulator). Falls back to the app
+    engine when no admin URL is configured (SQLite dev/test, where there is no RLS)."""
+    global _system_engine
+    s = get_settings()
+    if not s.database_admin_url:
+        return get_engine()
+    if _system_engine is None:
+        _system_engine = _make_engine(s.database_admin_url)
+    return _system_engine
+
+
 def set_engine(engine: Engine | None) -> None:
-    global _engine
-    _engine = engine
+    global _engine, _system_engine
+    _engine, _system_engine = engine, None
 
 
 def tenant_session(tenant_id: str) -> Session:
@@ -56,8 +69,8 @@ def tenant_session(tenant_id: str) -> Session:
 
 
 def system_session() -> Session:
-    """Cross-tenant session for authentication lookup, seeding and the telemetry simulator only."""
-    return Session(get_engine(), expire_on_commit=False, info={"tenant_id": None, "system": True})
+    """Cross-tenant session (owner role) for seeding and the demo simulator ONLY — never request paths."""
+    return Session(get_system_engine(), expire_on_commit=False, info={"tenant_id": None, "system": True})
 
 
 @event.listens_for(Session, "after_begin")
@@ -65,11 +78,7 @@ def _apply_rls_context(session: Session, transaction, connection) -> None:  # no
     if connection.dialect.name != "postgresql":
         return
     tid = session.info.get("tenant_id") or ""
-    bypass = "on" if session.info.get("system") else "off"
-    connection.exec_driver_sql(
-        "SELECT set_config('app.tenant_id', %s, true), set_config('app.bypass_rls', %s, true)",
-        (tid, bypass),
-    )
+    connection.exec_driver_sql("SELECT set_config('app.tenant_id', %s, true)", (tid,))
 
 
 @event.listens_for(Session, "do_orm_execute")

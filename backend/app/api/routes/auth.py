@@ -1,8 +1,11 @@
 from __future__ import annotations
 
+import time
+from types import SimpleNamespace
+
 from fastapi import APIRouter, Depends, HTTPException, Request, Response
 from starlette.concurrency import run_in_threadpool
-from sqlalchemy import select
+from sqlalchemy import select, text
 from sqlalchemy.orm import Session
 
 from app.api.deps import get_db, get_principal, ip_of
@@ -10,8 +13,8 @@ from app.core.config import get_settings
 from app.core.security import WS_AUDIENCE, Principal, create_token, verify_password
 from app.core.store import get_store
 from app.db.models import Tenant, User
-from app.db.session import system_session
-from app.schemas import LoginRequest, LoginResponse, TenantOut, UserOut, WsTicket
+from app.db.session import get_engine, system_session, tenant_session
+from app.schemas import LoginRequest, LoginResponse, RefreshResponse, TenantOut, UserOut, WsTicket
 from app.services.audit import append_audit
 
 router = APIRouter(prefix="/auth", tags=["auth"])
@@ -37,18 +40,53 @@ async def login(body: LoginRequest, request: Request) -> LoginResponse:
         raise
 
 
+def _find_user_for_login(email: str) -> SimpleNamespace | None:
+    """Pre-tenant lookup. On PostgreSQL this goes through a SECURITY DEFINER function that returns one
+    row by exact email, so the request path never needs a cross-tenant (RLS-bypassing) session."""
+    engine = get_engine()
+    if engine.dialect.name == "postgresql":
+        with engine.connect() as c:
+            row = c.execute(text("SELECT * FROM nexus_auth_user(:e)"), {"e": email}).mappings().first()
+        return SimpleNamespace(**row) if row else None
+    with system_session() as db:  # SQLite dev/test: no RLS to bypass
+        u = db.scalars(select(User).where(User.email == email)).first()
+        return SimpleNamespace(**{k: getattr(u, k) for k in ("id", "tenant_id", "email", "full_name", "password_hash", "role", "is_active")}) if u else None
+
+
 def _login(body: LoginRequest, ip: str) -> LoginResponse:
-    with system_session() as db:  # tenant is unknown until the credentials resolve a user
-        user = db.scalars(select(User).where(User.email == body.email.lower().strip())).first()
-        ok = verify_password(user.password_hash if user else None, body.password) and bool(user and user.is_active)
-        if user:
-            append_audit(db, user.tenant_id, "auth.login.success" if ok else "auth.login.failure", user_id=user.id, ip=ip)
-            db.commit()
-        if not ok or user is None:
+    user = _find_user_for_login(body.email.lower().strip())
+    ok = verify_password(user.password_hash if user else None, body.password) and bool(user and user.is_active)
+    if user is None:
+        raise HTTPException(status_code=401, detail="Invalid credentials")
+    with tenant_session(user.tenant_id) as db:
+        append_audit(db, user.tenant_id, "auth.login.success" if ok else "auth.login.failure", user_id=user.id, ip=ip)
+        db.commit()
+        if not ok:
             raise HTTPException(status_code=401, detail="Invalid credentials")
         tenant = db.get(Tenant, user.tenant_id)
         token, ttl = create_token(user.id, user.tenant_id, user.role, user.email)
         return LoginResponse(access_token=token, expires_in=ttl, user=UserOut.model_validate(user), tenant=TenantOut.model_validate(tenant))
+
+
+@router.post("/refresh", response_model=RefreshResponse)
+async def refresh(request: Request, principal: Principal = Depends(get_principal)) -> RefreshResponse:
+    """Sliding session: swap a still-valid token for a fresh one. The ORIGINAL login time is carried in
+    `auth_time`, so a session can never outlive SESSION_MAX_HOURS no matter how often it is refreshed."""
+    s = get_settings()
+    if time.time() - principal.auth_time > s.session_max_hours * 3600:
+        raise HTTPException(status_code=401, detail="Session expired; sign in again")
+    active = await run_in_threadpool(_still_active, principal)
+    if not active:
+        raise HTTPException(status_code=401, detail="Account disabled")
+    await get_store().set_once(f"revoked:{principal.jti}", s.jwt_ttl_minutes * 60)  # old token is single-use
+    token, ttl = create_token(principal.user_id, principal.tenant_id, principal.role, principal.email, auth_time=principal.auth_time)
+    return RefreshResponse(access_token=token, expires_in=ttl)
+
+
+def _still_active(p: Principal) -> bool:
+    with tenant_session(p.tenant_id) as db:
+        u = db.get(User, p.user_id)
+        return bool(u and u.is_active and u.role == p.role)  # role change forces re-login
 
 
 @router.get("/me", response_model=UserOut)
@@ -68,8 +106,6 @@ async def logout(request: Request, principal: Principal = Depends(get_principal)
 
 
 def _audit_logout(p: Principal, ip: str) -> None:
-    from app.db.session import tenant_session
-
     with tenant_session(p.tenant_id) as db:
         append_audit(db, p.tenant_id, "auth.logout", user_id=p.user_id, ip=ip)
         db.commit()

@@ -203,3 +203,28 @@ def test_csv_export_neutralises_formulas_and_is_role_gated(client, acme, acme_vi
     r = client.get("/api/v1/security/findings.csv", headers=acme["h"])
     assert r.status_code == 200 and r.headers["content-type"].startswith("text/csv")
     assert "'=HYPERLINK" in r.text and ",=HYPERLINK" not in r.text
+
+
+def test_refresh_rotates_token_and_keeps_absolute_cap(client, settings):
+    import time
+
+    import jwt as pyjwt
+
+    from app.core.keys import get_keyring
+    from app.core.security import create_token
+    from tests.conftest import _login
+
+    d = _login(client, "analyst@acme-fintech.example")
+    h = {"Authorization": f"Bearer {d['access_token']}"}
+    r = client.post("/api/v1/auth/refresh", headers=h)
+    assert r.status_code == 200
+    new = r.json()["access_token"]
+    claims = lambda t: pyjwt.decode(t, get_keyring().jwt_public_pem, algorithms=["RS256"], audience="nexus-api")  # noqa: E731
+    assert claims(new)["auth_time"] == claims(d["access_token"])["auth_time"]  # original login time preserved
+    assert claims(new)["jti"] != claims(d["access_token"])["jti"]
+    assert client.get("/api/v1/overview", headers={"Authorization": f"Bearer {new}"}).status_code == 200
+    assert client.post("/api/v1/auth/refresh", headers=h).status_code == 401  # old token single-use / revoked
+    # a session older than the absolute cap cannot be refreshed
+    p = claims(new)
+    old, _ = create_token(p["sub"], p["tid"], p["role"], p["email"], auth_time=int(time.time()) - (settings.session_max_hours * 3600 + 60))
+    assert client.post("/api/v1/auth/refresh", headers={"Authorization": f"Bearer {old}"}).status_code == 401
