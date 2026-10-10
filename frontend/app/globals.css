@@ -1,0 +1,53 @@
+@import "@fontsource/inter/400.css";
+@import "@fontsource/inter/500.css";
+@import "@fontsource/inter/600.css";
+@import "@fontsource/jetbrains-mono/400.css";
+@import "@fontsource/jetbrains-mono/500.css";
+@import "@fontsource/jetbrains-mono/700.css";
+@import "reactflow/dist/style.css";
+
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+:root { color-scheme: dark; }
+
+html, body { background: #090d16; }
+body {
+  @apply font-sans text-slate-200 antialiased;
+  background-image:
+    radial-gradient(900px 500px at 85% -10%, rgba(6,182,212,.10), transparent 60%),
+    radial-gradient(700px 400px at -5% 110%, rgba(16,185,129,.07), transparent 60%),
+    linear-gradient(rgba(148,163,184,.035) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(148,163,184,.035) 1px, transparent 1px);
+  background-size: auto, auto, 32px 32px, 32px 32px;
+  background-attachment: fixed;
+}
+
+@layer components {
+  .panel {
+    @apply relative rounded-lg border border-white/[0.07] bg-panel/70 backdrop-blur-md transition-colors duration-150;
+    box-shadow: inset 0 1px 0 rgba(255,255,255,.04);
+  }
+  .panel:hover { @apply border-cyan/30; }
+  .panel-title { @apply font-mono text-[11px] font-medium uppercase tracking-[0.18em] text-slate-400; }
+  .metric { @apply font-mono font-bold tabular-nums tracking-tight; }
+  .chip { @apply inline-flex items-center gap-1.5 rounded border px-2 py-0.5 font-mono text-[11px] uppercase tracking-wider; }
+  .btn {
+    @apply inline-flex items-center justify-center gap-2 rounded-md border border-cyan/40 bg-cyan/10 px-3.5 py-2 font-mono text-xs font-medium uppercase tracking-wider text-cyan-glow transition duration-150 hover:bg-cyan/20 hover:shadow-neon focus:outline-none focus-visible:ring-2 focus-visible:ring-cyan disabled:cursor-not-allowed disabled:opacity-40;
+  }
+  .btn-ghost { @apply border-white/10 bg-transparent text-slate-300 hover:border-white/25 hover:bg-white/5 hover:shadow-none; }
+  .input {
+    @apply w-full rounded-md border border-white/10 bg-void/80 px-3 py-2.5 font-mono text-sm text-slate-100 placeholder:text-slate-600 transition focus:border-cyan/60 focus:outline-none focus:ring-1 focus:ring-cyan/60;
+  }
+  .th { @apply px-3 py-2 text-left font-mono text-[10px] font-medium uppercase tracking-[0.16em] text-slate-500; }
+  .td { @apply px-3 py-2.5 align-top text-sm; }
+}
+
+::-webkit-scrollbar { width: 8px; height: 8px; }
+::-webkit-scrollbar-thumb { background: #1f2937; border-radius: 4px; }
+::-webkit-scrollbar-thumb:hover { background: #334155; }
+
+.react-flow__attribution { display: none; }
+.recharts-tooltip-wrapper { outline: none; }
+@media (prefers-reduced-motion: reduce) { * { animation: none !important; transition: none !important; } }

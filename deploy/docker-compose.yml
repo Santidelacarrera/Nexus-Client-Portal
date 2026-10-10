@@ -1,0 +1,92 @@
+# Usage (from repo root):
+#   cp .env.example .env     # then edit secrets
+#   docker compose --env-file .env -f deploy/docker-compose.yml up --build
+name: nexus-client-portal
+
+x-hardening: &hardening
+  security_opt: ["no-new-privileges:true"]
+  cap_drop: [ALL]
+  restart: unless-stopped
+
+services:
+  postgres:
+    image: postgres:16-alpine
+    <<: *hardening
+    cap_drop: []   # postgres entrypoint needs chown/setuid on first init
+    environment:
+      POSTGRES_USER: nexus_owner
+      POSTGRES_PASSWORD: ${POSTGRES_OWNER_PASSWORD:?set POSTGRES_OWNER_PASSWORD}
+      POSTGRES_DB: nexus
+      NEXUS_APP_PASSWORD: ${POSTGRES_APP_PASSWORD:?set POSTGRES_APP_PASSWORD}
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+      - ./postgres/init-roles.sh:/docker-entrypoint-initdb.d/10-init-roles.sh:ro
+    networks: [data]
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U nexus_owner -d nexus"]
+      interval: 5s
+      timeout: 3s
+      retries: 20
+
+  redis:
+    image: redis:7-alpine
+    <<: *hardening
+    command: ["redis-server", "--requirepass", "${REDIS_PASSWORD:?set REDIS_PASSWORD}", "--save", "", "--appendonly", "no"]
+    networks: [data]
+    healthcheck:
+      test: ["CMD-SHELL", "redis-cli -a \"$$REDIS_PASSWORD\" ping | grep PONG"]
+      interval: 5s
+      timeout: 3s
+      retries: 20
+    environment:
+      REDIS_PASSWORD: ${REDIS_PASSWORD}
+
+  api:
+    build: ../backend
+    <<: *hardening
+    depends_on:
+      postgres: {condition: service_healthy}
+      redis: {condition: service_healthy}
+    environment:
+      ENVIRONMENT: ${ENVIRONMENT:-production}
+      DATABASE_URL: postgresql+psycopg://nexus_app:${POSTGRES_APP_PASSWORD}@postgres:5432/nexus
+      DATABASE_ADMIN_URL: postgresql+psycopg://nexus_owner:${POSTGRES_OWNER_PASSWORD}@postgres:5432/nexus
+      REDIS_URL: redis://:${REDIS_PASSWORD}@redis:6379/0
+      KEYS_DIR: /keys
+      JWT_PRIVATE_KEY_PATH: /keys/jwt_private.pem
+      JWT_PUBLIC_KEY_PATH: /keys/jwt_public.pem
+      REPORT_SIGNING_KEY_PATH: /keys/report_signing.pem
+      DATA_ENCRYPTION_KEY_PATH: /keys/data.key
+      WEBHOOK_SECRET_PATH: /keys/webhook.secret
+      CORS_ORIGINS: '["${PUBLIC_WEB_ORIGIN:-http://localhost:3000}"]'
+      TRUSTED_PROXIES: ${TRUSTED_PROXIES:-false}
+      SEED_ON_START: ${SEED_ON_START:-true}
+      SEED_DEMO_PASSWORD: ${SEED_DEMO_PASSWORD:-}
+      TELEMETRY_SIMULATOR: ${TELEMETRY_SIMULATOR:-true}
+    volumes:
+      - keys:/keys
+    ports: ["8000:8000"]   # WebSocket endpoint must be reachable by the browser; put Envoy/WAF in front in production
+    networks: [data, edge]
+
+  web:
+    build: ../frontend
+    <<: *hardening
+    read_only: true
+    tmpfs: [/tmp, /app/.next/cache]
+    depends_on:
+      api: {condition: service_healthy}
+    environment:
+      BACKEND_URL: http://api:8000
+      PUBLIC_WS_URL: ${PUBLIC_WS_URL:-ws://localhost:8000}
+      COOKIE_SECURE: ${COOKIE_SECURE:-false}
+    ports: ["3000:3000"]
+    networks: [edge]
+
+volumes:
+  pgdata:
+  keys:
+
+networks:
+  data:
+    internal: true   # Postgres/Redis are unreachable from outside the compose network
+  edge:

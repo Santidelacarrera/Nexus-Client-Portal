@@ -1,0 +1,137 @@
+# 🔒 Nexus Client Portal
+
+**Managed Services White-Label Dashboard** — componente de plataforma de *Nexus Security & AI Lab* (Santiago de la Carrera).
+
+Consola B2B multi-tenant donde cada cliente audita en vivo la telemetría de seguridad (`ShadowAPI_Guard`), el ahorro de cloud (`KubeCost_Auto_HPA`), la calidad de su RAG (`ContextRAG_Engine`) y descarga informes ejecutivos **firmados digitalmente** con consenso multi-agente (`MultiAgent_Consensus`), con una pista de auditoría **append-only encadenada por hash**.
+
+| Overview | ShadowAPI Guard | FinOps | ContextRAG |
+|---|---|---|---|
+| estado de servicios, posture score, consenso, topología (React Flow) | hallazgos BOLA/IDOR, shadow/drift, feed en vivo | ahorro Δ$ (Recharts) en vivo por WebSocket | inspector NLI ≥ 0.95 con coordenadas de fuente |
+
+---
+
+## Arranque rápido
+
+```bash
+cp .env.example .env            # cambia TODOS los secretos
+docker compose --env-file .env -f deploy/docker-compose.yml up --build
+```
+
+* Portal: <http://localhost:3000> · API: <http://localhost:8000> (`/docs` solo si `ENVIRONMENT != production`)
+* Usuarios demo (contraseña = `SEED_DEMO_PASSWORD`, por defecto la de `.env.example`):
+  `ciso@acme-fintech.example` (owner), `analyst@acme-fintech.example`, `viewer@acme-fintech.example`, `ciso@helix-health.example` (otro tenant).
+* El primer arranque genera las claves (JWT RS256, firma de informes, AES, HMAC) en el volumen `keys`, aplica esquema + RLS y siembra datos demo.
+
+### Desarrollo local sin Docker
+
+```bash
+# backend (SQLite por defecto, sin RLS real; simulador en vivo)
+cd backend && python -m venv .venv && . .venv/bin/activate && pip install -r requirements-dev.txt
+SEED_DEMO_PASSWORD='Dev-Password-123!' TELEMETRY_SIMULATOR=1 python -m app.db.seed
+TELEMETRY_SIMULATOR=1 uvicorn app.main:app --reload --port 8000
+
+# frontend
+cd frontend && npm ci && BACKEND_URL=http://localhost:8000 PUBLIC_WS_URL=ws://localhost:8000 npm run dev
+```
+
+---
+
+## Arquitectura
+
+```
+ Browser ──HTTPS──► Next.js 14 (App Router, BFF)            CSP con nonce por request
+                    │  cookie httpOnly SameSite=Strict (JWT)  ← el token nunca toca JS
+                    │  /api/backend/*  (allow-list + check Origin)
+                    ▼
+            FastAPI (control plane)  ◄──── HMAC-SHA256 webhooks ──── agentes Nexus
+            AuthMiddleware → RateLimit → Headers/CSP
+                    │                         │ publish
+        SQLAlchemy 2 (sesión por tenant)      ▼
+                    │               Redis (Pub/Sub, rate-limit, tickets WS)
+                    ▼                         │ subscribe(tenant del JWT)
+            PostgreSQL 16 + RLS               ▼
+                                     WS /ws/telemetry  ──► navegador (ticket de un solo uso)
+```
+
+```
+backend/app/
+  core/    config · keys · crypto (AES-GCM, RSA-PSS, HMAC) · security (JWT, Argon2id, CSP, rate-limit, auth middleware) · store
+  db/      models (RLS) · session (aislamiento por tenant) · bootstrap (DDL RLS/triggers) · seed
+  api/routes/  auth · overview · security · finops · rag · reports · audit · webhooks · ws
+  services/    reports (firma/cifrado) · audit (cadena hash) · bus (Redis/memoria) · generators · simulator
+frontend/  app/(dashboard)/{overview,security,finops,ai-rag,reports} · components/ui · lib · middleware.ts
+deploy/    docker-compose.yml · postgres/init-roles.sh
+```
+
+---
+
+## Modelo de seguridad (lo que realmente está implementado)
+
+| Control | Implementación | Dónde |
+|---|---|---|
+| Aislamiento por tenant — **3 capas** | (1) **RLS** `ENABLE`+`FORCE` con política `tenant_id = current_setting('app.tenant_id')` y `WITH CHECK`; fail-closed si no hay tenant. (2) Filtro ORM global (`with_loader_criteria`) en todo SELECT. (3) Guard en `before_flush` contra escrituras cross-tenant. El tenant sale **solo** del claim `tid` del JWT verificado | `db/bootstrap.py`, `db/session.py` |
+| La app **no** es superusuario | rol `nexus_app` `NOSUPERUSER NOBYPASSRLS` (un superusuario saltaría RLS aun con `FORCE`). El esquema lo aplica otro rol (`DATABASE_ADMIN_URL`) | `deploy/postgres/init-roles.sh` |
+| JWT **RS256**, vida 15 min | algoritmo fijado (sin `none`/confusión HS256), `iss`/`aud`/`exp`/`jti` obligatorios | `core/security.py` |
+| Contraseñas **Argon2id** | + verificación ficticia para usuarios inexistentes (anti-enumeración por tiempo) | `core/security.py` |
+| Middleware de autenticación | rechaza todo `/api/*` sin `Authorization: Bearer` válido (401) | `core/security.py` |
+| Rate-limit IP + tenant + login | Redis (ventana fija); respaldo en memoria si Redis cae | `core/security.py`, `core/store.py` |
+| CSP **sin `unsafe-inline`** | API: `default-src 'none'`. Web: nonce por request + `strict-dynamic`; scripts y hojas de estilo sin inline. Única concesión: `style-src-attr 'unsafe-inline'` (atributos `style` que usan Recharts/React Flow; no ejecutan script) | `middleware.ts`, `core/security.py` |
+| Cifrado en reposo | **AES-256-GCM**, clave por tenant derivada con HKDF, AAD = `tenant|report_id` (un blob movido a otro tenant/registro no descifra) | `core/crypto.py` |
+| Firma de informes | **RSA-PSS/SHA-256** a nombre de *Santiago de la Carrera — Nexus Security & AI Lab*, JSON canónico; clave pública verificable offline (`GET /reports/public-key`) | `services/reports.py` |
+| Auditoría inmutable | cadena `entry_hash = SHA256(prev_hash ‖ entrada)` por tenant + en PostgreSQL trigger que prohíbe `UPDATE/DELETE/TRUNCATE` y `REVOKE` al rol de la app; `GET /audit/verify` detecta manipulación | `services/audit.py`, `db/bootstrap.py` |
+| Webhooks de agentes | **HMAC-SHA256** con clave por tenant sobre `timestamp.body`, comparación en tiempo constante, ventana anti-replay de 5 min | `api/routes/webhooks.py` |
+| WebSocket | ticket JWT de 30 s con `aud=nexus-ws`, **un solo uso**, comprobación de `Origin`; el canal se deriva del tenant verificado (no hay forma de suscribirse a otro) | `api/routes/ws.py` |
+| BFF / CSRF | cookie `httpOnly; SameSite=Strict; Secure` (prod) + verificación `Origin` en mutaciones + allow-list de rutas | `frontend/app/api/*` |
+| RBAC | `owner` / `analyst` / `viewer` (informes: owner+analyst; auditoría: owner) | `api/deps.py` |
+
+### Endurecimiento de despliegue incluido
+Contenedores no-root con `cap_drop: ALL` y `no-new-privileges`, frontend con FS de solo lectura, red `data` **interna** (Postgres y Redis inalcanzables desde fuera), Redis con contraseña y sin persistencia.
+
+### Checklist de producción
+1. Sustituir **todos** los secretos de `.env`; `SEED_ON_START=false`, `TELEMETRY_SIMULATOR=false`.
+2. Poner Envoy/WAF delante con TLS (y mTLS si se requiere), fijar `COOKIE_SECURE=true`, `TRUSTED_PROXIES=true` (solo si el proxy sobrescribe `X-Forwarded-For`), `PUBLIC_WEB_ORIGIN`/`PUBLIC_WS_URL` con `https`/`wss`.
+3. Guardar las claves en un gestor de secretos (`JWT_PRIVATE_KEY`, `REPORT_SIGNING_KEY`, `DATA_ENCRYPTION_KEY`, `WEBHOOK_SECRET`) en vez del volumen `keys`; **respaldar `DATA_ENCRYPTION_KEY`**: sin ella los informes cifrados no se recuperan.
+4. No publicar el puerto 8000 directamente: enrutar `/api` y `/ws` por el proxy.
+
+### Variables de entorno
+Ver [`.env.example`](.env.example) (compose) y [`backend/app/core/config.py`](backend/app/core/config.py) (lista completa; acepta `*_PATH` para secretos en fichero).
+
+---
+
+## API (resumen)
+
+`POST /api/v1/auth/login` · `GET /auth/me` · `POST /auth/ws-ticket` · `GET /overview` · `GET /security/{summary,findings,endpoints}` · `GET /finops/{summary,timeseries}` · `GET /rag/{summary,queries,queries/{id}}` · `GET /reports` · `POST /reports/generate` · `GET /reports/{id}/{download,verify}` · `GET /reports/public-key` (público) · `GET /audit`, `/audit/verify` (owner) · `POST /webhooks/agents` (HMAC) · `WS /ws/telemetry?ticket=`
+
+Ingesta desde un agente (ejemplo):
+```python
+ts = str(int(time.time())); body = json.dumps(payload).encode()
+sig = "sha256=" + hmac.new(tenant_webhook_key, ts.encode()+b"."+body, hashlib.sha256).hexdigest()
+requests.post(f"{API}/api/v1/webhooks/agents", data=body, headers={"X-Nexus-Tenant": tenant_id, "X-Nexus-Timestamp": ts, "X-Nexus-Signature": sig})
+```
+(`tenant_webhook_key = HKDF-SHA256(WEBHOOK_SECRET, info=b"webhook:"+tenant_id)`; ver `core/crypto.py`.)
+
+---
+
+## Pruebas
+
+```bash
+cd backend  && pytest -q                  # 26 tests (SQLite) — auth, aislamiento, RBAC, firma, cadena de auditoría, webhooks, WS
+cd frontend && npm test                   # Jest + Testing Library
+cd frontend && E2E_PASSWORD=… npm run test:e2e   # Playwright contra el stack levantado
+```
+
+Para validar **RLS real** (CI lo hace con un servicio PostgreSQL): crea los roles `nexus_owner` (superusuario) y `nexus_app` (sin privilegios) y exporta `DATABASE_URL`, `DATABASE_ADMIN_URL`, `TEST_PG_ADMIN_URL`, `TEST_PG_APP_URL`; la suite completa corre entonces sobre PostgreSQL y `test_postgres_rls.py` comprueba lectura/escritura cross-tenant, fail-closed y el trigger append-only. Ver `.github/workflows/ci.yml`.
+
+---
+
+## Alcance y limitaciones (leer antes de vender esto como "producción")
+
+Esto es una implementación completa y probada del núcleo descrito, **pero no todo el texto del brief está construido**:
+
+* **Datos simulados:** los agentes reales (ShadowAPI, KubeCost, ContextRAG) no están conectados. El *Seeder* y el *simulador* generan datos plausibles; la ingesta real entra por el webhook HMAC. El índice NLI es un dato recibido, no se calcula aquí. El simulador añade muestras horarias cada pocos segundos, por lo que el día actual en FinOps se infla (solo demo).
+* **Sin WebAuthn/Passkeys ni mTLS en la app:** la autenticación es contraseña (Argon2id) + JWT RS256. mTLS debe terminarse en Envoy/WAF (no se incluye config de Envoy ni manifiestos Kubernetes).
+* **Sin "Zero-Knowledge"**: el servidor descifra informes para servirlos; el cifrado es en reposo con claves por tenant.
+* **Sin gRPC ni ClickHouse**; sin refresh tokens ni revocación de JWT antes de su expiración (15 min); sin MFA.
+* **RLS y el flag `app.bypass_rls`:** el login, el seeder y el simulador necesitan leer entre tenants, y lo hacen con una variable de sesión `app.bypass_rls`. La protege que solo el código de la app emite SQL; una inyección SQL con control de `set_config` podría activarla. Un endurecimiento posible es un rol/función `SECURITY DEFINER` dedicado para el login.
+* **Migraciones:** el esquema se crea con `create_all` + DDL idempotente (`app.db.bootstrap`); no hay Alembic.
+* `docker compose up` no pudo ejecutarse en el entorno donde se desarrolló (sin demonio Docker); cada pieza se validó por separado: arranque en modo `production` con claves generadas por `genkeys`, PostgreSQL 16 con roles sin privilegios, Redis, Next.js en build de producción y Playwright (login, navegación, generación/verificación de informe, stream WS en vivo, sin errores de CSP ni de hidratación en consola).

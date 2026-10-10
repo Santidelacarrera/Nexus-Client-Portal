@@ -1,0 +1,10 @@
+.env
+*.pem
+__pycache__/
+*.pyc
+.venv/
+*.db
+.pytest_cache/
+node_modules/
+.DS_Store
+.graph-indexer/
