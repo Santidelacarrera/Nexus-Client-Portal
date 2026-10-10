@@ -10,7 +10,7 @@ from sqlalchemy.orm import Session
 
 from app.api.deps import get_db, get_principal, ip_of
 from app.core.config import get_settings
-from app.core.security import WS_AUDIENCE, Principal, create_token, verify_password
+from app.core.security import MFA_AUDIENCE, WS_AUDIENCE, Principal, create_token, verify_password
 from app.core.store import get_store
 from app.db.models import Tenant, User
 from app.db.session import get_engine, system_session, tenant_session
@@ -32,7 +32,8 @@ async def login(body: LoginRequest, request: Request) -> LoginResponse:
         raise HTTPException(status_code=429, detail="Too many failed attempts. Try again later.", headers={"Retry-After": str(LOCK_WINDOW)})
     try:
         result = await run_in_threadpool(_login, body, ip_of(request))
-        await store.delete(key)
+        if not result.mfa_required:
+            await store.delete(key)
         return result
     except HTTPException as exc:
         if exc.status_code == 401:
@@ -50,7 +51,7 @@ def _find_user_for_login(email: str) -> SimpleNamespace | None:
         return SimpleNamespace(**row) if row else None
     with system_session() as db:  # SQLite dev/test: no RLS to bypass
         u = db.scalars(select(User).where(User.email == email)).first()
-        return SimpleNamespace(**{k: getattr(u, k) for k in ("id", "tenant_id", "email", "full_name", "password_hash", "role", "is_active")}) if u else None
+        return SimpleNamespace(**{k: getattr(u, k) for k in ("id", "tenant_id", "email", "full_name", "password_hash", "role", "is_active", "mfa_enabled")}) if u else None
 
 
 def _login(body: LoginRequest, ip: str) -> LoginResponse:
@@ -63,6 +64,11 @@ def _login(body: LoginRequest, ip: str) -> LoginResponse:
         db.commit()
         if not ok:
             raise HTTPException(status_code=401, detail="Invalid credentials")
+        if user.mfa_enabled:
+            append_audit(db, user.tenant_id, "auth.login.mfa_challenge", user_id=user.id, ip=ip)
+            db.commit()
+            challenge, _ = create_token(user.id, user.tenant_id, user.role, user.email, audience=MFA_AUDIENCE, ttl_seconds=300)
+            return LoginResponse(mfa_required=True, mfa_token=challenge)
         tenant = db.get(Tenant, user.tenant_id)
         token, ttl = create_token(user.id, user.tenant_id, user.role, user.email)
         return LoginResponse(access_token=token, expires_in=ttl, user=UserOut.model_validate(user), tenant=TenantOut.model_validate(tenant))

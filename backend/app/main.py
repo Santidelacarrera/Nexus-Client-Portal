@@ -8,7 +8,7 @@ from contextlib import asynccontextmanager
 from fastapi import APIRouter, FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
-from app.api.routes import audit, auth, finops, overview, rag, reports, security, webhooks, ws
+from app.api.routes import audit, auth, finops, mfa, overview, rag, reports, security, webhooks, ws
 from app.core.config import get_settings
 from app.core.keys import get_keyring
 from app.core.security import AuthMiddleware, RateLimitMiddleware, SecurityHeadersMiddleware
@@ -52,7 +52,7 @@ def create_app() -> FastAPI:
     )
 
     api = APIRouter(prefix="/api/v1")
-    for r in (auth.router, overview.router, security.router, finops.router, rag.router, reports.router, audit.router, webhooks.router):
+    for r in (auth.router, mfa.router, overview.router, security.router, finops.router, rag.router, reports.router, audit.router, webhooks.router):
         api.include_router(r)
     app.include_router(api)
     app.include_router(ws.router)

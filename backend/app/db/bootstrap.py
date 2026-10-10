@@ -42,14 +42,15 @@ def apply_schema(engine: Engine, app_role: str | None = None) -> None:
         )
         # Login must find a user before any tenant is known. A narrowly-scoped SECURITY DEFINER
         # function exposes exactly one row by exact email — nothing else crosses tenants.
+        c.execute(text("DROP FUNCTION IF EXISTS nexus_auth_user(text)"))
         c.execute(
             text(
                 """
                 CREATE OR REPLACE FUNCTION nexus_auth_user(p_email text)
                 RETURNS TABLE (id varchar, tenant_id varchar, email varchar, full_name varchar,
-                               password_hash varchar, role varchar, is_active boolean)
+                               password_hash varchar, role varchar, is_active boolean, mfa_enabled boolean)
                 LANGUAGE sql STABLE SECURITY DEFINER SET search_path = public AS $$
-                    SELECT u.id, u.tenant_id, u.email, u.full_name, u.password_hash, u.role, u.is_active
+                    SELECT u.id, u.tenant_id, u.email, u.full_name, u.password_hash, u.role, u.is_active, u.mfa_enabled
                     FROM users u WHERE u.email = p_email LIMIT 1
                 $$
                 """

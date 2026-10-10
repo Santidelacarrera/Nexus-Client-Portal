@@ -45,6 +45,11 @@ class User(TenantScoped, Base):
     role: Mapped[str] = mapped_column(String(20), default="viewer")  # owner | analyst | viewer
     is_active: Mapped[bool] = mapped_column(Boolean, default=True)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)
+    # TOTP MFA. Secret is AES-256-GCM encrypted with the tenant key; recovery codes stored as SHA-256.
+    mfa_enabled: Mapped[bool] = mapped_column(Boolean, default=False)
+    mfa_secret_enc: Mapped[bytes | None] = mapped_column(LargeBinary, nullable=True)
+    mfa_recovery: Mapped[list] = mapped_column(JSON, default=list)
+    mfa_last_counter: Mapped[int] = mapped_column(BigInteger().with_variant(Integer, "sqlite"), default=0)
 
 
 class ApiEndpoint(TenantScoped, Base):

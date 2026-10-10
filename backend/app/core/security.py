@@ -36,6 +36,7 @@ def verify_password(stored_hash: str | None, password: str) -> bool:
 # ---------------------------------------------------------------- JWT (RS256)
 API_AUDIENCE = "nexus-api"
 WS_AUDIENCE = "nexus-ws"
+MFA_AUDIENCE = "nexus-mfa"  # 5-minute second-factor challenge; never accepted by the API
 
 
 @dataclass(frozen=True)
@@ -137,7 +138,7 @@ class RateLimitMiddleware(BaseHTTPMiddleware):
 
 
 # ---------------------------------------------------------------- authentication middleware
-PUBLIC_PATHS = {"/health", "/api/v1/auth/login", "/api/v1/reports/public-key", "/api/v1/webhooks/agents"}
+PUBLIC_PATHS = {"/health", "/api/v1/auth/login", "/api/v1/auth/mfa/verify", "/api/v1/reports/public-key", "/api/v1/webhooks/agents"}
 
 
 class AuthMiddleware(BaseHTTPMiddleware):

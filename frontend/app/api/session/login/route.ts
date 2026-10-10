@@ -17,6 +17,7 @@ export async function POST(req: Request) {
     return NextResponse.json({ detail: status === 429 ? "Too many attempts. Try again shortly." : "Invalid credentials" }, { status });
   }
   const data = await res.json();
+  if (data.mfa_required) return NextResponse.json({ mfa_required: true, mfa_token: data.mfa_token });
   const out = NextResponse.json({ user: data.user, tenant: data.tenant });
   out.cookies.set(SESSION_COOKIE, data.access_token, {
     httpOnly: true,

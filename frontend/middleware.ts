@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 
 const SESSION_COOKIE = "nexus_session";
-const PUBLIC = ["/login", "/api/session/login"];
+const PUBLIC = ["/login", "/api/session/login", "/api/session/mfa"];
 
 /** Per-request nonce CSP (no 'unsafe-inline' for scripts or stylesheets) + coarse auth gate. */
 export function middleware(req: NextRequest) {

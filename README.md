@@ -83,6 +83,7 @@ deploy/    docker-compose.yml · postgres/init-roles.sh
 | Webhooks de agentes | **HMAC-SHA256** con clave por tenant sobre `timestamp.body`, comparación en tiempo constante, ventana anti-replay de 5 min | `api/routes/webhooks.py` |
 | WebSocket | ticket JWT de 30 s con `aud=nexus-ws`, **un solo uso**, comprobación de `Origin`; el canal se deriva del tenant verificado (no hay forma de suscribirse a otro) | `api/routes/ws.py` |
 | BFF / CSRF | cookie `httpOnly; SameSite=Strict; Secure` (prod) + verificación `Origin` en mutaciones + allow-list de rutas | `frontend/app/api/*` |
+| **MFA TOTP** (RFC 6238) | enrolamiento con QR en `/account`, 8 códigos de recuperación de un solo uso (SHA-256), login en dos pasos con *challenge* JWT de 5 min (`aud=nexus-mfa`, inservible en la API y de un solo uso), protección anti-replay del paso TOTP, secreto cifrado con AES-GCM por tenant, fallos de segundo factor cuentan para el bloqueo por cuenta; deshabilitar exige un código válido. Verificado con los vectores del RFC 6238 | `core/totp.py`, `api/routes/mfa.py` |
 | Sesión deslizante | `POST /auth/refresh` rota el token (el anterior queda revocado), conserva `auth_time` y respeta un tope absoluto (`SESSION_MAX_HOURS`, 8 h); un cambio de rol o desactivación fuerza reingreso | `api/routes/auth.py` |
 | Sesión revocable | `POST /auth/logout` deniega el `jti` del token en Redis hasta su expiración; el middleware lo comprueba en cada request (un token robado deja de servir tras cerrar sesión) | `api/routes/auth.py`, `core/security.py` |
 | Anti fuerza bruta | rate-limit por IP **y** bloqueo por identidad (5 fallos/15 min, existan o no, se resetea al acertar) | `api/routes/auth.py` |
@@ -106,7 +107,7 @@ Ver [`.env.example`](.env.example) (compose) y [`backend/app/core/config.py`](ba
 
 ## API (resumen)
 
-`POST /api/v1/auth/login` · `POST /auth/logout` · `POST /auth/refresh` · `GET /auth/me` · `POST /auth/ws-ticket` · `GET /overview` · `GET /security/{summary,findings,findings.csv,endpoints}` · `PATCH /security/findings/{id}` · `GET /finops/{summary,timeseries}` · `GET /rag/{summary,queries,queries/{id}}` · `GET /reports` · `POST /reports/generate` · `GET /reports/{id}/{download,verify}` · `GET /reports/public-key` (público) · `GET /audit`, `/audit/verify` (owner) · `POST /webhooks/agents` (HMAC) · `WS /ws/telemetry?ticket=`
+`POST /api/v1/auth/login` · `POST /auth/logout` · `POST /auth/refresh` · `POST /auth/mfa/{setup,enable,disable,verify}` · `GET /auth/mfa/status` · `GET /auth/me` · `POST /auth/ws-ticket` · `GET /overview` · `GET /security/{summary,findings,findings.csv,endpoints}` · `PATCH /security/findings/{id}` · `GET /finops/{summary,timeseries}` · `GET /rag/{summary,queries,queries/{id}}` · `GET /reports` · `POST /reports/generate` · `GET /reports/{id}/{download,verify}` · `GET /reports/public-key` (público) · `GET /audit`, `/audit/verify` (owner) · `POST /webhooks/agents` (HMAC) · `WS /ws/telemetry?ticket=`
 
 Ingesta desde un agente (ejemplo):
 ```python
@@ -121,7 +122,7 @@ requests.post(f"{API}/api/v1/webhooks/agents", data=body, headers={"X-Nexus-Tena
 ## Pruebas
 
 ```bash
-cd backend  && pytest -q                  # 34 tests (SQLite; +RLS real si hay PostgreSQL) — auth, logout/lockout, aislamiento, RBAC, triage, CSV, firma, cadena de auditoría, webhooks, WS
+cd backend  && pytest -q                  # 38 tests (SQLite; +RLS real si hay PostgreSQL) — auth, logout/lockout, aislamiento, RBAC, triage, CSV, firma, cadena de auditoría, webhooks, WS
 cd frontend && npm test                   # Jest + Testing Library
 cd frontend && E2E_PASSWORD=… npm run test:e2e   # Playwright contra el stack levantado
 ```
@@ -135,9 +136,9 @@ Para validar **RLS real** (CI lo hace con un servicio PostgreSQL): crea los role
 Esto es una implementación completa y probada del núcleo descrito, **pero no todo el texto del brief está construido**:
 
 * **Datos simulados:** los agentes reales (ShadowAPI, KubeCost, ContextRAG) no están conectados. El *Seeder* y el *simulador* generan datos plausibles; la ingesta real entra por el webhook HMAC. El índice NLI es un dato recibido, no se calcula aquí. Las muestras en vivo del simulador se prorratean para no distorsionar el histórico.
-* **Sin WebAuthn/Passkeys ni mTLS en la app:** la autenticación es contraseña (Argon2id) + JWT RS256. mTLS debe terminarse en Envoy/WAF (no se incluye config de Envoy ni manifiestos Kubernetes).
+* **Sin WebAuthn/Passkeys ni mTLS en la app:** la autenticación es contraseña (Argon2id) + MFA TOTP opcional + JWT RS256. MFA no es obligatorio por rol todavía. mTLS debe terminarse en Envoy/WAF (no se incluye config de Envoy ni manifiestos Kubernetes).
 * **Sin "Zero-Knowledge"**: el servidor descifra informes para servirlos; el cifrado es en reposo con claves por tenant.
-* **Sin gRPC ni ClickHouse**; sin MFA.
+* **Sin gRPC ni ClickHouse**; sin MFA obligatorio por política. Las columnas MFA se añadieron al modelo `users`: una base creada con una versión anterior necesita `ALTER TABLE` (no hay Alembic).
 * **Credenciales admin en la API:** el simulador demo y el seeder usan el rol owner (`DATABASE_ADMIN_URL`). En producción desactiva ambos (`TELEMETRY_SIMULATOR=false`, `SEED_ON_START=false`); el entrypoint solo necesita la URL admin para aplicar el esquema, y puedes quitarla del servicio tras el primer arranque / ejecutar `app.db.bootstrap` como job aparte.
 * **Migraciones:** el esquema se crea con `create_all` + DDL idempotente (`app.db.bootstrap`); no hay Alembic.
 * `docker compose up` no pudo ejecutarse en el entorno donde se desarrolló (sin demonio Docker); cada pieza se validó por separado: arranque en modo `production` con claves generadas por `genkeys`, PostgreSQL 16 con roles sin privilegios, Redis, Next.js en build de producción y Playwright (login, navegación, generación/verificación de informe, stream WS en vivo, sin errores de CSP ni de hidratación en consola).

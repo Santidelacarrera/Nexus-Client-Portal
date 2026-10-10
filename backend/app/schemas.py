@@ -21,6 +21,7 @@ class UserOut(ORM):
     full_name: str
     role: str
     tenant_id: str
+    mfa_enabled: bool = False
 
 
 class TenantOut(ORM):
@@ -31,11 +32,33 @@ class TenantOut(ORM):
 
 
 class LoginResponse(BaseModel):
-    access_token: str
+    """Either a full session, or (mfa_required) a 5-minute challenge token for POST /auth/mfa/verify."""
+
+    access_token: str | None = None
     token_type: str = "bearer"
-    expires_in: int
-    user: UserOut
-    tenant: TenantOut
+    expires_in: int = 0
+    user: UserOut | None = None
+    tenant: TenantOut | None = None
+    mfa_required: bool = False
+    mfa_token: str | None = None
+
+
+class MfaVerifyRequest(BaseModel):
+    mfa_token: str = Field(min_length=10, max_length=4096)
+    code: str = Field(min_length=6, max_length=16)
+
+
+class MfaCode(BaseModel):
+    code: str = Field(min_length=6, max_length=16)
+
+
+class MfaSetup(BaseModel):
+    secret: str
+    uri: str
+
+
+class MfaEnabled(BaseModel):
+    recovery_codes: list[str]
 
 
 class RefreshResponse(BaseModel):
