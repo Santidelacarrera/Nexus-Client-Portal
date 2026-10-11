@@ -29,9 +29,9 @@ test('el banner de cookies no bloquea la navegación por teclado y no hay petici
 test('formulario: sin consentimiento no se envía', async ({ page }) => {
   await page.goto('/#contacto');
   await page.getByRole('button', { name: 'Rechazar opcionales' }).click();
-  await page.getByLabel('Nombre').fill('Ana Pérez');
+  await page.getByLabel('Nombre', { exact: true }).fill('Ana Pérez');
   await page.getByLabel(/Correo/).fill('ana@example.com');
-  await page.getByLabel('Mensaje').fill('Quiero conocer cómo funciona el portal.');
-  const consent = page.getByRole('checkbox');
+  await page.getByLabel('Mensaje', { exact: true }).fill('Quiero conocer cómo funciona el portal.');
+  const consent = page.getByRole('checkbox', { name: /Acepto/ });
   await expect(consent).not.toBeChecked();
 });

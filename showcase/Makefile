@@ -1,4 +1,4 @@
-.PHONY: install build run test lint security db-roles
+.PHONY: install build run test lint security db-roles docker-build docker-run
 PY ?= python
 
 install:
@@ -26,3 +26,9 @@ security:
 
 db-roles:
 	./scripts/db_roles.sh
+
+docker-build:
+	docker build -t nexus-showcase .
+
+docker-run:
+	docker run --rm -p 8000:8000 --env-file .env nexus-showcase

@@ -14,6 +14,13 @@ python scripts/hash_password.py  # genera STAFF_PASSWORD_HASH (Argon2id)
 make run                         # usa --no-server-header: no se anuncia el servidor
 ```
 
+## Contenedor
+
+```bash
+make docker-build && make docker-run   # usa --env-file .env (el hash Argon2 contiene '$')
+```
+La imagen corre como usuario no root (uid 10001) y arranca con `--no-server-header`. La base de datos NO va en la imagen: apunta `DATABASE_URL` a tu PostgreSQL 16.
+
 ## Estructura
 
 | Ruta | Contenido |
@@ -40,9 +47,20 @@ make run                         # usa --no-server-header: no se anuncia el serv
 ```bash
 export TEST_ADMIN_DSN=postgresql://admin:pw@localhost/postgres   # rol con CREATEDB/CREATEROLE
 make test            # pytest + jest
-make run &           # y luego, con SHOWCASE_URL apuntando al sitio:
-npm run test:a11y
+make run &           # y luego, con el sitio en marcha:
+SHOWCASE_URL=http://localhost:8000 npm run test:a11y   # axe WCAG 2.1 AA + banner + sin terceros
+make lint security   # linters y escáneres
 ```
+
+## Estado de cumplimiento normativo
+
+| Tema | Estado |
+|---|---|
+| Consentimiento (Ley 21.719 / RGPD) | Implementado y probado: casilla explícita, registro con fecha, versión de política e id de sesión; retiro posible escribiendo al contacto de privacidad |
+| Páginas `/privacidad`, `/terminos`, `/cookies` | **Borradores. Sujetos a revisión legal por un abogado antes de publicar** |
+| Datos de la empresa (razón social, RUT, domicilio, correo) | Vacíos a propósito: se completan en `.env` |
+| Banner de cookies | Hoy el sitio no usa analítica ni terceros; el banner y su bloqueo previo ya están listos para cuando se añadan |
+| Retención | Mensajes: 12 meses (`purge_expired_contact_messages()`, ejecútala con cron) |
 
 ## Lo que NO está resuelto (leer antes de publicar)
 
@@ -53,5 +71,5 @@ npm run test:a11y
 5. **`eslint-plugin-jsx-a11y`** está configurado, pero este sitio no usa JSX, así que no analiza nada hoy; la accesibilidad se verifica con axe y `tests/test_pages.py`.
 6. **Semgrep `p/owasp-top-ten` no se pudo ejecutar** en el entorno de desarrollo (el registro `semgrep.dev` estaba bloqueado). Ejecútalo en CI/local: `make security`.
 7. **`npm audit` completo** informa vulnerabilidades en herramientas de *desarrollo* (jest 29, tailwind 3, cadena de babel); no se distribuyen. Las dependencias de producción (`--omit=dev`) están en 0.
-8. **Dockerfile no probado**; el rate limit usa memoria (por proceso): con varios workers define `RATELIMIT_STORAGE_URI` (Redis).
+8. **Dockerfile no construido**: el entorno de desarrollo tenía el cliente Docker pero no el daemon. Sí se reprodujo su secuencia paso a paso (`npm ci && npm run build`, `pip install -r requirements.txt`, arranque con el mismo comando) en un directorio limpio y la app respondió. Además, el rate limit usa memoria (por proceso): con varios workers define `RATELIMIT_STORAGE_URI` (Redis).
 9. **Contraste del anillo de foco y bordes**: verificado por cálculo (≥3:1), no por auditoría visual humana.
