@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from datetime import datetime
+from typing import Literal
 
 from pydantic import BaseModel, ConfigDict, Field
 
@@ -20,6 +21,7 @@ class UserOut(ORM):
     full_name: str
     role: str
     tenant_id: str
+    mfa_enabled: bool = False
 
 
 class TenantOut(ORM):
@@ -30,11 +32,48 @@ class TenantOut(ORM):
 
 
 class LoginResponse(BaseModel):
-    access_token: str
+    """Either a full session, or (mfa_required) a 5-minute challenge token for POST /auth/mfa/verify."""
+
+    access_token: str | None = None
     token_type: str = "bearer"
+    expires_in: int = 0
+    user: UserOut | None = None
+    tenant: TenantOut | None = None
+    mfa_required: bool = False
+    mfa_token: str | None = None
+
+
+class MfaVerifyRequest(BaseModel):
+    mfa_token: str = Field(min_length=10, max_length=4096)
+    code: str = Field(min_length=6, max_length=16)
+
+
+class MfaCode(BaseModel):
+    code: str = Field(min_length=6, max_length=16)
+
+
+class MfaSetup(BaseModel):
+    secret: str
+    uri: str
+
+
+class MfaEnabled(BaseModel):
+    recovery_codes: list[str]
+
+
+class MeOut(UserOut):
+    tenant_name: str
+    mfa_setup_required: bool = False
+
+
+class PasswordChange(BaseModel):
+    current_password: str = Field(min_length=1, max_length=256)
+    new_password: str = Field(min_length=1, max_length=256)
+
+
+class RefreshResponse(BaseModel):
+    access_token: str
     expires_in: int
-    user: UserOut
-    tenant: TenantOut
 
 
 class WsTicket(BaseModel):
@@ -55,6 +94,10 @@ class FindingOut(ORM):
     cvss: float
     detected_at: datetime
     source: str
+
+
+class FindingStatusUpdate(BaseModel):
+    status: Literal["open", "mitigating", "resolved"]
 
 
 class EndpointOut(ORM):

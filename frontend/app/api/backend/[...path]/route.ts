@@ -2,7 +2,7 @@ import { NextResponse } from "next/server";
 import { API, sameOrigin, sessionToken } from "@/lib/server";
 
 // Only these backend areas are reachable from the browser through the BFF.
-const ALLOWED = [/^overview$/, /^security\//, /^finops\//, /^rag\//, /^reports(\/|$)/, /^audit(\/|$)/];
+const ALLOWED = [/^overview$/, /^auth\/mfa\/(status|setup|enable|disable)$/, /^auth\/(password|logout-all)$/, /^ask(\/[0-9a-f-]{36})?$/, /^security\//, /^finops\//, /^rag\//, /^reports(\/|$)/, /^audit(\/|$)/];
 
 async function handle(req: Request, { params }: { params: { path: string[] } }) {
   const path = params.path.join("/");
@@ -14,7 +14,8 @@ async function handle(req: Request, { params }: { params: { path: string[] } }) 
   const url = new URL(req.url);
   const upstream = await fetch(`${API}/${path}${url.search}`, {
     method: req.method,
-    headers: { Authorization: `Bearer ${token}` },
+    headers: { Authorization: `Bearer ${token}`, ...(req.method !== "GET" ? { "Content-Type": "application/json" } : {}) },
+    body: req.method !== "GET" ? (await req.text()) || undefined : undefined,
     cache: "no-store",
   });
   const headers = new Headers();
@@ -23,8 +24,9 @@ async function handle(req: Request, { params }: { params: { path: string[] } }) 
     if (v) headers.set(h, v);
   }
   headers.set("Cache-Control", "no-store");
-  return new NextResponse(upstream.body, { status: upstream.status, headers });
+  return new NextResponse(upstream.status === 204 ? null : upstream.body, { status: upstream.status, headers });
 }
 
 export const GET = handle;
 export const POST = handle;
+export const PATCH = handle;

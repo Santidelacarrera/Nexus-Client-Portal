@@ -25,6 +25,7 @@ class Settings(BaseSettings):
     jwt_public_key_path: str | None = None
     jwt_issuer: str = "nexus-client-portal"
     jwt_ttl_minutes: int = 15
+    session_max_hours: int = 8  # absolute cap, enforced across refreshes
 
     # Agency report-signing key (RSA) — signs executive reports.
     report_signing_key: str | None = None
@@ -43,6 +44,17 @@ class Settings(BaseSettings):
     rate_limit_ip_per_minute: int = 240
     rate_limit_tenant_per_minute: int = 600
     rate_limit_login_per_minute: int = 10
+    login_max_failures: int = 5
+    # Roles that MUST have MFA. Their sessions are confined to /auth/* until they enrol (e.g. ["owner"]).
+    mfa_required_roles: list[str] = Field(default_factory=list)
+    metrics_token: str | None = None  # /metrics is disabled (404) unless set
+    json_logs: bool = False
+    # MultiAgent_Consensus answer gate (portal → consensus → ContextRAG)
+    consensus_url: str | None = None
+    consensus_assertion_secret: str | None = None
+    consensus_assertion_secret_path: str | None = None
+    consensus_timeout_seconds: float = 20.0
+    ask_rate_per_minute: int = 20
     trusted_proxies: bool = False  # honour X-Forwarded-For (behind Envoy)
 
     telemetry_simulator: bool = False

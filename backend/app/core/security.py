@@ -36,6 +36,7 @@ def verify_password(stored_hash: str | None, password: str) -> bool:
 # ---------------------------------------------------------------- JWT (RS256)
 API_AUDIENCE = "nexus-api"
 WS_AUDIENCE = "nexus-ws"
+MFA_AUDIENCE = "nexus-mfa"  # 5-minute second-factor challenge; never accepted by the API
 
 
 @dataclass(frozen=True)
@@ -45,9 +46,11 @@ class Principal:
     role: str
     email: str
     jti: str
+    auth_time: float = 0.0  # unix time of the original password login
+    mfa_setup_required: bool = False  # policy: confined to /auth/* until MFA is enrolled
 
 
-def create_token(user_id: str, tenant_id: str, role: str, email: str, *, audience: str = API_AUDIENCE, ttl_seconds: int | None = None) -> tuple[str, int]:
+def create_token(user_id: str, tenant_id: str, role: str, email: str, *, audience: str = API_AUDIENCE, ttl_seconds: int | None = None, auth_time: float | None = None, mfa_setup_required: bool = False) -> tuple[str, int]:
     s = get_settings()
     ttl = ttl_seconds or s.jwt_ttl_minutes * 60
     now = int(time.time())
@@ -59,6 +62,8 @@ def create_token(user_id: str, tenant_id: str, role: str, email: str, *, audienc
         "role": role,
         "email": email,
         "jti": uuid.uuid4().hex,
+        "auth_time": auth_time if auth_time is not None else time.time(),
+        "mfa_setup": mfa_setup_required,
         "iat": now,
         "nbf": now,
         "exp": now + ttl,
@@ -76,7 +81,7 @@ def decode_token(token: str, audience: str = API_AUDIENCE) -> Principal:
         issuer=get_settings().jwt_issuer,
         options={"require": ["exp", "iat", "sub", "tid", "jti"]},
     )
-    return Principal(c["sub"], c["tid"], c.get("role", "viewer"), c.get("email", ""), c["jti"])
+    return Principal(c["sub"], c["tid"], c.get("role", "viewer"), c.get("email", ""), c["jti"], float(c.get("auth_time", c["iat"])), bool(c.get("mfa_setup", False)))
 
 
 # ---------------------------------------------------------------- client IP
@@ -135,7 +140,7 @@ class RateLimitMiddleware(BaseHTTPMiddleware):
 
 
 # ---------------------------------------------------------------- authentication middleware
-PUBLIC_PATHS = {"/health", "/api/v1/auth/login", "/api/v1/reports/public-key", "/api/v1/webhooks/agents"}
+PUBLIC_PATHS = {"/health", "/api/v1/auth/login", "/api/v1/auth/mfa/verify", "/api/v1/reports/public-key", "/api/v1/webhooks/agents"}
 
 
 class AuthMiddleware(BaseHTTPMiddleware):
@@ -153,8 +158,36 @@ class AuthMiddleware(BaseHTTPMiddleware):
             principal = decode_token(token)
         except jwt.PyJWTError:
             return JSONResponse({"detail": "Invalid or expired token"}, status_code=401, headers={"WWW-Authenticate": "Bearer"})
+        if await get_store().exists(f"revoked:{principal.jti}"):
+            return JSONResponse({"detail": "Session revoked"}, status_code=401, headers={"WWW-Authenticate": "Bearer"})
+        cutoff = await get_store().count(f"sessions-valid-after:{principal.user_id}")
+        if cutoff and int(principal.auth_time * 1000) <= cutoff:  # password change / sign-out-everywhere
+            return JSONResponse({"detail": "Session revoked"}, status_code=401, headers={"WWW-Authenticate": "Bearer"})
+        if principal.mfa_setup_required and not (path.startswith("/api/v1/auth/") and path != "/api/v1/auth/ws-ticket"):
+            return JSONResponse({"detail": "MFA enrolment required", "code": "mfa_enrollment_required"}, status_code=403)
         request.state.principal = principal
         minute = int(time.time() // 60)
         if await get_store().incr_window(f"rl:tenant:{principal.tenant_id}:{minute}", 60) > get_settings().rate_limit_tenant_per_minute:
             return _too_many(60, "tenant")
         return await call_next(request)
+
+
+# ---------------------------------------------------------------- password policy
+_COMMON = {"password", "passw0rd", "123456789012", "qwertyuiop12", "letmein12345", "administrator", "welcome12345", "changeme1234", "iloveyou1234", "nexus1234567"}
+
+
+def password_problem(password: str, email: str = "") -> str | None:
+    """Length-first policy (NIST 800-63B style). Returns a human message, or None if acceptable."""
+    if len(password) < 12:
+        return "Use at least 12 characters."
+    if len(password) > 128:
+        return "Use at most 128 characters."
+    low = password.lower()
+    local = email.split("@")[0].lower()
+    if low in _COMMON or any(w in low for w in ("password", "qwerty", "123456")):
+        return "That password is too common."
+    if len(local) >= 4 and local in low:
+        return "Do not include your email name in the password."
+    if len(set(password)) < 5:
+        return "Use a less repetitive password."
+    return None

@@ -63,6 +63,8 @@ services:
       SEED_ON_START: ${SEED_ON_START:-true}
       SEED_DEMO_PASSWORD: ${SEED_DEMO_PASSWORD:-}
       TELEMETRY_SIMULATOR: ${TELEMETRY_SIMULATOR:-true}
+      MFA_REQUIRED_ROLES: ${MFA_REQUIRED_ROLES:-[]}
+      METRICS_TOKEN: ${METRICS_TOKEN:-}
     volumes:
       - keys:/keys
     ports: ["8000:8000"]   # WebSocket endpoint must be reachable by the browser; put Envoy/WAF in front in production

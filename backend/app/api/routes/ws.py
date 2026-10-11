@@ -8,6 +8,7 @@ from fastapi import APIRouter, WebSocket, WebSocketDisconnect
 from starlette.concurrency import run_in_threadpool
 
 from app.core.config import get_settings
+from app.core.observability import WS_CONNECTIONS
 from app.core.security import WS_AUDIENCE, client_ip, decode_token
 from app.core.store import get_store
 from app.db.session import tenant_session
@@ -39,6 +40,7 @@ async def telemetry(ws: WebSocket) -> None:
         await ws.close(code=4401)
         return
     await ws.accept()
+    WS_CONNECTIONS.inc()
     await run_in_threadpool(_audit_connect, p.tenant_id, p.user_id, client_ip(ws))  # type: ignore[arg-type]
     await ws.send_json({"type": "hello", "tenant_id": p.tenant_id})
 
@@ -53,6 +55,7 @@ async def telemetry(ws: WebSocket) -> None:
     except WebSocketDisconnect:
         pass
     finally:
+        WS_CONNECTIONS.dec()
         task.cancel()
         with contextlib.suppress(asyncio.CancelledError, Exception):
             await task

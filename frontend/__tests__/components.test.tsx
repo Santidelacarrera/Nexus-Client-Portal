@@ -36,3 +36,24 @@ describe("FindingsTable", () => {
     expect(screen.getByText("title-live")).toBeInTheDocument();
   });
 });
+
+describe("FindingsTable triage", () => {
+  beforeEach(() => useTelemetry.setState({ liveFindings: [] }));
+
+  it("hides triage controls and export for read-only roles", () => {
+    render(<FindingsTable initial={[mk("a", "high")]} />);
+    fireEvent.click(screen.getByText("/api/a"));
+    expect(screen.queryByText("Triage")).not.toBeInTheDocument();
+    expect(screen.queryByText("Export CSV")).not.toBeInTheDocument();
+  });
+
+  it("PATCHes the status and updates the row optimistically after success", async () => {
+    const fetchMock = jest.fn().mockResolvedValue({ ok: true, status: 200 });
+    global.fetch = fetchMock as unknown as typeof fetch;
+    render(<FindingsTable initial={[mk("a", "high")]} canEdit />);
+    fireEvent.click(screen.getByText("/api/a"));
+    await act(async () => { fireEvent.click(screen.getAllByRole("button", { name: "resolved" })[0]); });
+    expect(fetchMock).toHaveBeenCalledWith("/api/backend/security/findings/a", { method: "PATCH", body: JSON.stringify({ status: "resolved" }) });
+    expect(screen.queryByText("/api/a")).not.toBeInTheDocument(); // resolved rows are hidden by default
+  });
+});

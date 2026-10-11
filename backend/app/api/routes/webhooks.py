@@ -7,13 +7,12 @@ import time
 import anyio
 from fastapi import APIRouter, HTTPException, Request
 from pydantic import ValidationError
-from sqlalchemy import select
 
 from app.core import crypto
 from app.core.config import get_settings
 from app.core.keys import get_keyring
 from app.db.models import ApiFinding, Tenant
-from app.db.session import system_session, tenant_session
+from app.db.session import tenant_session
 from app.schemas import AgentWebhook, FindingOut
 from app.services import bus
 from app.services.audit import append_audit
@@ -45,10 +44,9 @@ async def agent_webhook(request: Request) -> dict:
         raise HTTPException(401, "Invalid signature")
 
     def persist() -> dict:
-        with system_session() as sysdb:
-            if sysdb.scalars(select(Tenant.id).where(Tenant.id == tenant_id)).first() is None:
-                raise HTTPException(401, "Invalid signature")
         with tenant_session(tenant_id) as db:
+            if db.get(Tenant, tenant_id) is None:  # RLS: unknown tenants simply have no visible row
+                raise HTTPException(401, "Invalid signature")
             f = ApiFinding(tenant_id=tenant_id, **data.model_dump(exclude={"tenant_id"}))
             db.add(f)
             db.flush()

@@ -14,7 +14,9 @@ from app.db.models import TENANT_TABLES, Base
 
 log = logging.getLogger("nexus.bootstrap")
 
-_PRED = "(tenant_id = current_setting('app.tenant_id', true) OR current_setting('app.bypass_rls', true) = 'on')"
+# No bypass clause: the app role can never see another tenant's rows, whatever SQL it runs.
+# Cross-tenant work (seeding, demo simulator, schema) uses the owner role, which bypasses RLS natively.
+_PRED = "(tenant_id = current_setting('app.tenant_id', true))"
 
 
 def apply_schema(engine: Engine, app_role: str | None = None) -> None:
@@ -35,10 +37,26 @@ def apply_schema(engine: Engine, app_role: str | None = None) -> None:
         c.execute(
             text(
                 "CREATE POLICY tenant_isolation ON tenants "
-                "USING (id = current_setting('app.tenant_id', true) OR current_setting('app.bypass_rls', true) = 'on') "
-                "WITH CHECK (current_setting('app.bypass_rls', true) = 'on')"
+                "USING (id = current_setting('app.tenant_id', true)) WITH CHECK (false)"
             )
         )
+        # Login must find a user before any tenant is known. A narrowly-scoped SECURITY DEFINER
+        # function exposes exactly one row by exact email — nothing else crosses tenants.
+        c.execute(text("DROP FUNCTION IF EXISTS nexus_auth_user(text)"))
+        c.execute(
+            text(
+                """
+                CREATE OR REPLACE FUNCTION nexus_auth_user(p_email text)
+                RETURNS TABLE (id varchar, tenant_id varchar, email varchar, full_name varchar,
+                               password_hash varchar, role varchar, is_active boolean, mfa_enabled boolean)
+                LANGUAGE sql STABLE SECURITY DEFINER SET search_path = public AS $$
+                    SELECT u.id, u.tenant_id, u.email, u.full_name, u.password_hash, u.role, u.is_active, u.mfa_enabled
+                    FROM users u WHERE u.email = p_email LIMIT 1
+                $$
+                """
+            )
+        )
+        c.execute(text("REVOKE ALL ON FUNCTION nexus_auth_user(text) FROM PUBLIC"))
         # Append-only audit log: trigger + minimal grants.
         c.execute(
             text(
@@ -69,6 +87,7 @@ def apply_schema(engine: Engine, app_role: str | None = None) -> None:
             c.execute(text(f'GRANT SELECT, INSERT, UPDATE, DELETE ON ALL TABLES IN SCHEMA public TO "{role}"'))
             c.execute(text(f'REVOKE UPDATE, DELETE, TRUNCATE ON audit_logs FROM "{role}"'))
             c.execute(text(f'GRANT USAGE, SELECT ON ALL SEQUENCES IN SCHEMA public TO "{role}"'))
+            c.execute(text(f'GRANT EXECUTE ON FUNCTION nexus_auth_user(text) TO "{role}"'))
         else:
             log.warning("Role %s not found: grants skipped (is the app connecting as owner/superuser? RLS would be bypassed)", role)
 

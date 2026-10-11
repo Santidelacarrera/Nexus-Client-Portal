@@ -9,6 +9,7 @@ from sqlalchemy import select, text
 from sqlalchemy.orm import Session
 
 from app.core.crypto import canonical_json
+from app.core.observability import AUDIT_EVENTS
 from app.db.models import AuditLog, utcnow
 
 GENESIS = "0" * 64
@@ -43,6 +44,7 @@ def append_audit(db: Session, tenant_id: str, action: str, *, user_id: str | Non
     )
     db.add(entry)
     db.flush()
+    AUDIT_EVENTS.labels(action).inc()
     return entry
 
 

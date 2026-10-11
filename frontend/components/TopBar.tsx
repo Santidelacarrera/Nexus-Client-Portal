@@ -1,6 +1,7 @@
 "use client";
 import { LogOut } from "lucide-react";
 import { useRouter } from "next/navigation";
+import { useEffect } from "react";
 import { useTelemetry } from "@/lib/store";
 import { useTelemetryStream } from "@/lib/useTelemetryStream";
 import { StatusDot } from "./ui/Badge";
@@ -9,6 +10,15 @@ export function TopBar({ tenant, user, role }: { tenant: string; user: string; r
   useTelemetryStream();
   const connection = useTelemetry((s) => s.connection);
   const router = useRouter();
+
+  // Keep the 15-minute token fresh while the console is open; the server caps total session age.
+  useEffect(() => {
+    const t = setInterval(async () => {
+      const r = await fetch("/api/session/refresh", { method: "POST" }).catch(() => null);
+      if (r && r.status === 401) window.location.assign("/login?expired=1");
+    }, 7 * 60 * 1000);
+    return () => clearInterval(t);
+  }, []);
 
   async function logout() {
     await fetch("/api/session/logout", { method: "POST" });
