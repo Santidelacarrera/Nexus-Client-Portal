@@ -1,0 +1,345 @@
+{
+  "$comment": "Generated from app/contracts/answer_review.py — do not edit by hand",
+  "$defs": {
+    "Finding": {
+      "additionalProperties": false,
+      "properties": {
+        "code": {
+          "title": "Code",
+          "type": "string"
+        },
+        "detail": {
+          "title": "Detail",
+          "type": "string"
+        },
+        "fragmentIndex": {
+          "anyOf": [
+            {
+              "type": "integer"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Fragmentindex"
+        },
+        "severity": {
+          "enum": [
+            "info",
+            "low",
+            "medium",
+            "high",
+            "critical"
+          ],
+          "title": "Severity",
+          "type": "string"
+        }
+      },
+      "required": [
+        "code",
+        "severity",
+        "detail"
+      ],
+      "title": "Finding",
+      "type": "object"
+    },
+    "Reason": {
+      "additionalProperties": false,
+      "properties": {
+        "agent": {
+          "anyOf": [
+            {
+              "enum": [
+                "hallucination_critic",
+                "tenant_security_auditor",
+                "coherence_validator"
+              ],
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "title": "Agent"
+        },
+        "code": {
+          "title": "Code",
+          "type": "string"
+        },
+        "detail": {
+          "title": "Detail",
+          "type": "string"
+        },
+        "severity": {
+          "enum": [
+            "info",
+            "low",
+            "medium",
+            "high",
+            "critical"
+          ],
+          "title": "Severity",
+          "type": "string"
+        }
+      },
+      "required": [
+        "code",
+        "agent",
+        "severity",
+        "detail"
+      ],
+      "title": "Reason",
+      "type": "object"
+    },
+    "Retrieval": {
+      "additionalProperties": false,
+      "properties": {
+        "fragments": {
+          "title": "Fragments",
+          "type": "integer"
+        },
+        "latencyMs": {
+          "title": "Latencyms",
+          "type": "number"
+        },
+        "status": {
+          "enum": [
+            "ok",
+            "no_results",
+            "unavailable"
+          ],
+          "title": "Status",
+          "type": "string"
+        }
+      },
+      "required": [
+        "status",
+        "fragments",
+        "latencyMs"
+      ],
+      "title": "Retrieval",
+      "type": "object"
+    },
+    "Source": {
+      "additionalProperties": false,
+      "properties": {
+        "docId": {
+          "title": "Docid",
+          "type": "string"
+        },
+        "end": {
+          "title": "End",
+          "type": "integer"
+        },
+        "index": {
+          "title": "Index",
+          "type": "integer"
+        },
+        "page": {
+          "anyOf": [
+            {
+              "type": "integer"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "title": "Page"
+        },
+        "score": {
+          "title": "Score",
+          "type": "number"
+        },
+        "section": {
+          "title": "Section",
+          "type": "string"
+        },
+        "source": {
+          "title": "Source",
+          "type": "string"
+        },
+        "start": {
+          "title": "Start",
+          "type": "integer"
+        },
+        "text": {
+          "title": "Text",
+          "type": "string"
+        }
+      },
+      "required": [
+        "index",
+        "score",
+        "docId",
+        "source",
+        "section",
+        "page",
+        "start",
+        "end",
+        "text"
+      ],
+      "title": "Source",
+      "type": "object"
+    },
+    "Timings": {
+      "additionalProperties": false,
+      "properties": {
+        "panelMs": {
+          "title": "Panelms",
+          "type": "number"
+        },
+        "retrievalMs": {
+          "title": "Retrievalms",
+          "type": "number"
+        },
+        "totalMs": {
+          "title": "Totalms",
+          "type": "number"
+        }
+      },
+      "required": [
+        "totalMs",
+        "retrievalMs",
+        "panelMs"
+      ],
+      "title": "Timings",
+      "type": "object"
+    },
+    "Verdict": {
+      "additionalProperties": false,
+      "properties": {
+        "agent": {
+          "enum": [
+            "hallucination_critic",
+            "tenant_security_auditor",
+            "coherence_validator"
+          ],
+          "title": "Agent",
+          "type": "string"
+        },
+        "findings": {
+          "items": {
+            "$ref": "#/$defs/Finding"
+          },
+          "title": "Findings",
+          "type": "array"
+        },
+        "rationale": {
+          "title": "Rationale",
+          "type": "string"
+        },
+        "score": {
+          "maximum": 1.0,
+          "minimum": 0.0,
+          "title": "Score",
+          "type": "number"
+        },
+        "vote": {
+          "enum": [
+            "approve",
+            "reject"
+          ],
+          "title": "Vote",
+          "type": "string"
+        }
+      },
+      "required": [
+        "agent",
+        "vote",
+        "score",
+        "findings",
+        "rationale"
+      ],
+      "title": "Verdict",
+      "type": "object"
+    }
+  },
+  "$id": "answer-review.v1",
+  "additionalProperties": false,
+  "properties": {
+    "answer": {
+      "anyOf": [
+        {
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "title": "Answer"
+    },
+    "contract": {
+      "const": "answer-review.v1",
+      "title": "Contract",
+      "type": "string"
+    },
+    "escalation": {
+      "title": "Escalation",
+      "type": "boolean"
+    },
+    "outcome": {
+      "enum": [
+        "RELEASED",
+        "BLOCKED"
+      ],
+      "title": "Outcome",
+      "type": "string"
+    },
+    "question": {
+      "title": "Question",
+      "type": "string"
+    },
+    "reasons": {
+      "items": {
+        "$ref": "#/$defs/Reason"
+      },
+      "title": "Reasons",
+      "type": "array"
+    },
+    "requestId": {
+      "title": "Requestid",
+      "type": "string"
+    },
+    "retrieval": {
+      "$ref": "#/$defs/Retrieval"
+    },
+    "sources": {
+      "items": {
+        "$ref": "#/$defs/Source"
+      },
+      "title": "Sources",
+      "type": "array"
+    },
+    "tenantId": {
+      "title": "Tenantid",
+      "type": "string"
+    },
+    "timings": {
+      "$ref": "#/$defs/Timings"
+    },
+    "votes": {
+      "items": {
+        "$ref": "#/$defs/Verdict"
+      },
+      "title": "Votes",
+      "type": "array"
+    }
+  },
+  "required": [
+    "contract",
+    "requestId",
+    "tenantId",
+    "question",
+    "outcome",
+    "answer",
+    "reasons",
+    "votes",
+    "sources",
+    "retrieval",
+    "timings",
+    "escalation"
+  ],
+  "title": "AnswerReview",
+  "type": "object"
+}

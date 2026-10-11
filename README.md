@@ -10,6 +10,9 @@ Consola B2B multi-tenant donde cada cliente audita en vivo la telemetría de seg
 
 ---
 
+> **Integración RAG + comité de gobernanza:** pregunta → ContextRAG → panel de 3 agentes (fail-closed) → respuesta con fuentes
+> autorizadas. Arquitectura, contratos y verificación en [`docs/INTEGRATION.md`](docs/INTEGRATION.md).
+
 ## Arranque rápido
 
 ```bash
@@ -110,7 +113,7 @@ Ver [`.env.example`](.env.example) (compose) y [`backend/app/core/config.py`](ba
 
 ## API (resumen)
 
-`POST /api/v1/auth/login` · `POST /auth/logout` · `POST /auth/logout-all` · `POST /auth/password` · `POST /auth/refresh` · `POST /auth/mfa/{setup,enable,disable,verify}` · `GET /auth/mfa/status` · `GET /auth/me` · `POST /auth/ws-ticket` · `GET /overview` · `GET /security/{summary,findings,findings.csv,endpoints}` · `PATCH /security/findings/{id}` · `GET /finops/{summary,timeseries}` · `GET /rag/{summary,queries,queries/{id}}` · `GET /reports` · `POST /reports/generate` · `GET /reports/{id}/{download,verify}` · `GET /reports/public-key` (público) · `GET /audit`, `/audit/verify` (owner) · `POST /webhooks/agents` (HMAC) · `WS /ws/telemetry?ticket=`
+`POST /api/v1/auth/login` · `POST /auth/logout` · `POST /auth/logout-all` · `POST /auth/password` · `POST /auth/refresh` · `POST /auth/mfa/{setup,enable,disable,verify}` · `GET /auth/mfa/status` · `GET /auth/me` · `POST /auth/ws-ticket` · `GET /overview` · `GET /security/{summary,findings,findings.csv,endpoints}` · `PATCH /security/findings/{id}` · `GET /finops/{summary,timeseries}` · `GET /rag/{summary,queries,queries/{id}}` · `GET /reports` · `POST /reports/generate` · `GET /reports/{id}/{download,verify}` · `GET /reports/public-key` (público) · `POST /ask` · `GET /ask`, `/ask/{id}` · `GET /audit`, `/audit/verify` (owner) · `POST /webhooks/agents` (HMAC) · `WS /ws/telemetry?ticket=`
 
 Ingesta desde un agente (ejemplo):
 ```python

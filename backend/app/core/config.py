@@ -49,6 +49,12 @@ class Settings(BaseSettings):
     mfa_required_roles: list[str] = Field(default_factory=list)
     metrics_token: str | None = None  # /metrics is disabled (404) unless set
     json_logs: bool = False
+    # MultiAgent_Consensus answer gate (portal → consensus → ContextRAG)
+    consensus_url: str | None = None
+    consensus_assertion_secret: str | None = None
+    consensus_assertion_secret_path: str | None = None
+    consensus_timeout_seconds: float = 20.0
+    ask_rate_per_minute: int = 20
     trusted_proxies: bool = False  # honour X-Forwarded-For (behind Envoy)
 
     telemetry_simulator: bool = False

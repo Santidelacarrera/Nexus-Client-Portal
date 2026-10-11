@@ -1,6 +1,5 @@
 import time
 
-import pytest
 
 from app.core import totp
 from app.core.store import get_store

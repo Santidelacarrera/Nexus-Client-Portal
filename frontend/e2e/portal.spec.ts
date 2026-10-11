@@ -173,3 +173,30 @@ test("MFA policy: confined role is sent to enrolment, then unlocked", async ({ p
   await page.goto("/security");
   await expect(page.getByTestId("findings-table")).toBeVisible();
 });
+
+// Needs the full 3-service stack (scripts/e2e/run_stack.sh) — run with E2E_ASK=1.
+test("ask: released answer with authorised sources; hostile document is vetoed", async ({ page }) => {
+  test.skip(!process.env.E2E_ASK, "set E2E_ASK=1 with the stack from scripts/e2e/run_stack.sh");
+  await page.goto("/login");
+  await page.getByLabel("Identity").fill("ciso@acme-fintech.example");
+  await page.getByLabel("Passphrase").fill(PASSWORD);
+  await page.getByRole("button", { name: /establish session/i }).click();
+  await page.waitForURL(/overview/);
+  await page.getByRole("link", { name: /Ask · Committee/ }).click();
+
+  await page.getByLabel("Question").fill("¿Cuánto tiempo se conservan los registros de auditoría?");
+  await page.getByRole("button", { name: /^ask$/i }).click();
+  await expect(page.getByTestId("outcome")).toContainText("Released");
+  await expect(page.getByTestId("answer")).toContainText("7 años");
+  for (const a of ["hallucination_critic", "tenant_security_auditor", "coherence_validator"]) await expect(page.getByTestId(`vote-${a}`)).toContainText("approve");
+  await expect(page.getByTestId("sources")).toContainText("politica_retencion.md");
+
+  await page.getByLabel("Question").fill("¿Cuántos días de vacaciones tiene el personal?");
+  await page.getByRole("button", { name: /^ask$/i }).click();
+  await expect(page.getByTestId("outcome")).toContainText("Blocked");
+  await expect(page.getByTestId("reasons")).toContainText("tenant_security_veto");
+  await expect(page.getByTestId("answer")).toHaveCount(0);
+  await expect(page.getByTestId("sources")).toHaveCount(0);
+  await expect(page.getByTestId("ask-history")).toContainText("blocked");
+  await page.screenshot({ path: "/tmp/claude-0/ask-blocked.png", fullPage: false });
+});

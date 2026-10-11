@@ -1,0 +1,205 @@
+From 94c1c90ae2a6def1ebae34f3f69db58a351b5428 Mon Sep 17 00:00:00 2001
+From: Claude <noreply@anthropic.com>
+Date: Sun, 11 Oct 2026 13:27:19 +0000
+Subject: [PATCH] Partition retrieval_audit by month (parity with answer_audit)
+
+- retrieval_audit becomes a RANGE (ts) partitioned table with PRIMARY KEY (id, ts); RLS policy unchanged
+- TenantDB keeps an owner connection, creates current+2 monthly partitions at start-up and ensures the
+  current month before each tenant transaction, so a month rollover never fails a write
+- the application role keeps SELECT/INSERT on the parent only (partitions are not directly reachable)
+- a legacy unpartitioned table is refused with a clear migration message (same policy as answer_audit)
+- tests: partitioned, row lands in the current partition, rollover, legacy refusal
+
+Co-Authored-By: Claude Sonnet 5.5 <noreply@anthropic.com>
+Claude-Session: https://claude.ai/code/session_01N1Uqe9mCozcnbgqne53KoV
+---
+ contextrag/db.py           | 66 +++++++++++++++++++++++++++++++-------
+ tests/test_retrieve_api.py | 46 ++++++++++++++++++++++++++
+ 2 files changed, 100 insertions(+), 12 deletions(-)
+
+diff --git a/contextrag/db.py b/contextrag/db.py
+index 1ec53eb..89b3749 100644
+--- a/contextrag/db.py
++++ b/contextrag/db.py
+@@ -5,14 +5,19 @@ superuser, not ``BYPASSRLS`` and not the owner of the tables. Every unit of work
+ statement is ``set_config('app.tenant', <tenant>, true)`` (the transaction-local equivalent of ``SET LOCAL``); the
+ ``tenant_isolation`` row-level-security policies then expose only that tenant's rows.
+ 
+-Schema changes (``retrieval_audit`` and its policy) run on the admin connection (``POSTGRES_ADMIN_DSN``, the owner).
++Schema changes (``retrieval_audit``, its policy and its monthly range partitions) run on the admin connection
++(``POSTGRES_ADMIN_DSN``, the owner). ``retrieval_audit`` is partitioned by month exactly like ``answer_audit``: the
++current month and the next two are created at start-up and the month of "now" is ensured before each transaction, so a
++write can never fail merely because the calendar rolled over.
+ """
+ from __future__ import annotations
+ 
+ import logging
+ import os
++import threading
+ from collections.abc import Iterator
+ from contextlib import contextmanager
++from datetime import datetime, timedelta, timezone
+ from typing import TYPE_CHECKING
+ 
+ if TYPE_CHECKING:
+@@ -24,7 +29,7 @@ TENANT_SETTING = "app.tenant"  # the name the RLS policies read; the same one co
+ 
+ _SCHEMA = f"""
+ CREATE TABLE IF NOT EXISTS retrieval_audit (
+-    id uuid PRIMARY KEY,
++    id uuid NOT NULL,
+     ts timestamptz NOT NULL DEFAULT now(),
+     tenant text NOT NULL,
+     user_id text,
+@@ -32,8 +37,9 @@ CREATE TABLE IF NOT EXISTS retrieval_audit (
+     top_k integer NOT NULL,
+     fragments integer NOT NULL,
+     doc_ids jsonb NOT NULL,
+-    latency_ms double precision NOT NULL
+-);
++    latency_ms double precision NOT NULL,
++    PRIMARY KEY (id, ts)
++) PARTITION BY RANGE (ts);
+ CREATE INDEX IF NOT EXISTS retrieval_audit_tenant_ts ON retrieval_audit (tenant, ts DESC);
+ ALTER TABLE retrieval_audit ENABLE ROW LEVEL SECURITY;
+ DROP POLICY IF EXISTS tenant_isolation ON retrieval_audit;
+@@ -43,6 +49,11 @@ CREATE POLICY tenant_isolation ON retrieval_audit
+ """
+ 
+ 
++def _month(ts: datetime) -> tuple[str, datetime, datetime]:
++    start = ts.astimezone(timezone.utc).replace(day=1, hour=0, minute=0, second=0, microsecond=0)
++    return f"retrieval_audit_{start:%Y%m}", start, (start + timedelta(days=32)).replace(day=1)
++
++
+ class TenantDB:
+     """Pool of application-role connections; every transaction is bound to one tenant."""
+ 
+@@ -54,24 +65,54 @@ class TenantDB:
+                                    kwargs={"autocommit": True})
+         with self.pool.connection() as conn:
+             self.app_role = conn.execute("SELECT current_user").fetchone()[0]
+-        self._ensure_schema(admin_dsn or app_dsn)
+-
+-    def _ensure_schema(self, admin_dsn: str) -> None:
+         import psycopg
++
++        self._lock = threading.RLock()
++        self._partitions: set[str] = set()
++        self._admin = psycopg.connect(admin_dsn or app_dsn, autocommit=True)
++        self._ensure_schema()
++
++    def _ensure_schema(self) -> None:
+         from psycopg import sql
+ 
+-        with psycopg.connect(admin_dsn, autocommit=True) as admin:
+-            admin.execute(_SCHEMA)
+-            owner = admin.execute("SELECT current_user").fetchone()[0]
++        with self._lock:
++            row = self._admin.execute("SELECT relkind FROM pg_class WHERE oid = to_regclass('retrieval_audit')").fetchone()
++            if row and row[0] != "p":
++                raise RuntimeError("retrieval_audit exists but is not partitioned; migrate it before starting "
++                                   "(rename it, restart to create the partitioned table, then INSERT ... SELECT)")
++            self._admin.execute(_SCHEMA)
++            owner = self._admin.execute("SELECT current_user").fetchone()[0]
+             if self.app_role != owner:  # append-only for the application: no UPDATE/DELETE grant
+-                admin.execute(sql.SQL("GRANT SELECT, INSERT ON retrieval_audit TO {}")
+-                              .format(sql.Identifier(self.app_role)))
++                self._admin.execute(sql.SQL("GRANT SELECT, INSERT ON retrieval_audit TO {}")
++                                    .format(sql.Identifier(self.app_role)))
++            self.ensure_partitions()
++
++    def ensure_partition(self, ts: datetime) -> None:
++        """Create the monthly partition that holds ``ts`` if it does not exist yet (owner connection)."""
++        from psycopg import sql
++
++        name, start, end = _month(ts)
++        with self._lock:
++            if name in self._partitions:
++                return
++            self._admin.execute(sql.SQL("CREATE TABLE IF NOT EXISTS {} PARTITION OF retrieval_audit "
++                                        "FOR VALUES FROM ({}) TO ({})")
++                                .format(sql.Identifier(name), sql.Literal(start), sql.Literal(end)))
++            self._partitions.add(name)
++
++    def ensure_partitions(self, months_ahead: int = 2) -> None:
++        """Partitions for the current month and the next ``months_ahead`` months."""
++        _, start, _ = _month(datetime.now(timezone.utc))
++        for _ in range(months_ahead + 1):
++            self.ensure_partition(start)
++            start = (start + timedelta(days=32)).replace(day=1)
+ 
+     @contextmanager
+     def tenant_transaction(self, tenant: str) -> Iterator[Connection]:
+         """Transaction in which RLS exposes only ``tenant``'s rows. Committed on success, rolled back on error."""
+         if not tenant:
+             raise ValueError("tenant is required")
++        self.ensure_partition(datetime.now(timezone.utc))  # cheap set lookup; DDL only when the month rolls over
+         with self.pool.connection() as conn, conn.transaction():
+             conn.execute("SELECT set_config(%s, %s, true)", (TENANT_SETTING, tenant))
+             yield conn
+@@ -96,6 +137,7 @@ class TenantDB:
+ 
+     def close(self) -> None:
+         self.pool.close()
++        self._admin.close()
+ 
+     @classmethod
+     def from_env(cls) -> TenantDB | None:
+diff --git a/tests/test_retrieve_api.py b/tests/test_retrieve_api.py
+index 537f8b3..f1c7053 100644
+--- a/tests/test_retrieve_api.py
++++ b/tests/test_retrieve_api.py
+@@ -240,3 +240,49 @@ def test_endpoint_returns_503_when_the_database_is_shut_down(rag, pg_dsn, pg_app
+     r = post(TestClient(create_app(rag, tenant_db=db)), {"tenant_id": "acme", "query": QUESTION})
+     assert r.status_code == 503 and r.json()["error"] == "database_unavailable"
+     assert db.health() is False
++
++
++def test_retrieval_audit_is_partitioned_by_month_like_answer_audit(tenant_db, rag, pg_dsn, pg_app_dsn):
++    import psycopg
++    from datetime import datetime, timezone
++
++    with psycopg.connect(pg_dsn, autocommit=True) as admin:
++        assert admin.execute("SELECT relkind FROM pg_class WHERE oid = to_regclass('retrieval_audit')").fetchone()[0] == "p"
++        parts = {r[0] for r in admin.execute(
++            "SELECT inhrelid::regclass::text FROM pg_inherits WHERE inhparent = 'retrieval_audit'::regclass")}
++        assert len(parts) >= 3  # current month + two ahead
++        assert f"retrieval_audit_{datetime.now(timezone.utc):%Y%m}" in parts
++        admin.execute("DELETE FROM retrieval_audit")
++    c = TestClient(create_app(rag, tenant_db=tenant_db))
++    assert post(c, {"tenant_id": "acme", "query": QUESTION}).status_code == 200
++    with psycopg.connect(pg_dsn, autocommit=True) as admin:  # the row physically lives in the current month's partition
++        where = admin.execute("SELECT tableoid::regclass::text FROM retrieval_audit").fetchall()
++        assert where == [(f"retrieval_audit_{datetime.now(timezone.utc):%Y%m}",)]
++    with psycopg.connect(pg_app_dsn, autocommit=True) as raw:  # partitions are not directly reachable by the app role
++        with pytest.raises(psycopg.errors.InsufficientPrivilege):
++            raw.execute(f"SELECT * FROM retrieval_audit_{datetime.now(timezone.utc):%Y%m}")
++
++
++def test_month_rollover_creates_the_partition_before_writing(tenant_db, pg_dsn):
++    import psycopg
++    from datetime import datetime, timezone
++
++    future = datetime(2031, 3, 15, tzinfo=timezone.utc)
++    tenant_db.ensure_partition(future)
++    with psycopg.connect(pg_dsn, autocommit=True) as admin:
++        assert admin.execute("SELECT to_regclass('retrieval_audit_203103')").fetchone()[0] is not None
++    tenant_db.ensure_partition(future)  # idempotent
++
++
++def test_a_legacy_unpartitioned_table_is_refused_with_a_clear_message(pg_dsn, pg_app_dsn):
++    import psycopg
++    from contextrag.db import TenantDB
++
++    with psycopg.connect(pg_dsn, autocommit=True) as admin:
++        admin.execute("CREATE DATABASE legacy_audit_db")
++    legacy = pg_dsn.rsplit("/", 1)[0] + "/legacy_audit_db"
++    with psycopg.connect(legacy, autocommit=True) as c:
++        c.execute("CREATE TABLE retrieval_audit (id uuid PRIMARY KEY, ts timestamptz, tenant text, user_id text, "
++                  "query text, top_k int, fragments int, doc_ids jsonb, latency_ms double precision)")
++    with pytest.raises(RuntimeError, match="not partitioned"):
++        TenantDB(legacy, admin_dsn=legacy)
+-- 
+2.43.0
+

@@ -1,5 +1,5 @@
 "use client";
-import { Activity, Bot, FileCheck2, Gauge, KeyRound, ShieldAlert, Wallet } from "lucide-react";
+import { Activity, Bot, FileCheck2, Gauge, KeyRound, MessagesSquare, ShieldAlert, Wallet } from "lucide-react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 
@@ -8,6 +8,7 @@ export const NAV = [
   { href: "/security", label: "ShadowAPI Guard", icon: ShieldAlert },
   { href: "/finops", label: "FinOps · KubeCost", icon: Wallet },
   { href: "/ai-rag", label: "ContextRAG", icon: Bot },
+  { href: "/ask", label: "Ask · Committee", icon: MessagesSquare },
   { href: "/reports", label: "Reports & Audit", icon: FileCheck2 },
   { href: "/account", label: "Account & MFA", icon: KeyRound },
 ];

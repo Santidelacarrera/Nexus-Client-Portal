@@ -140,6 +140,21 @@ class Report(TenantScoped, Base):
     consensus: Mapped[float] = mapped_column(Float, default=0.0)
 
 
+class ConsensusRun(TenantScoped, Base):
+    """One question put to the RAG + committee pipeline. Content (question, answer, sources) is AES-GCM encrypted."""
+
+    __tablename__ = "consensus_runs"
+    id: Mapped[str] = mapped_column(String(36), primary_key=True, default=_uuid)
+    user_id: Mapped[str] = mapped_column(String(36))
+    request_id: Mapped[str] = mapped_column(String(64), unique=True)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow, index=True)
+    outcome: Mapped[str] = mapped_column(String(10))  # RELEASED | BLOCKED | ERROR
+    reason_codes: Mapped[list] = mapped_column(JSON, default=list)
+    escalation: Mapped[bool] = mapped_column(Boolean, default=False)
+    latency_ms: Mapped[float] = mapped_column(Float, default=0.0)
+    payload_enc: Mapped[bytes] = mapped_column(LargeBinary)
+
+
 class AuditLog(TenantScoped, Base):
     """Append-only, hash-chained per tenant. UPDATE/DELETE are blocked by trigger + grants."""
 
@@ -156,4 +171,4 @@ class AuditLog(TenantScoped, Base):
     entry_hash: Mapped[str] = mapped_column(String(64))
 
 
-TENANT_TABLES = [m.__tablename__ for m in (User, ApiEndpoint, ApiFinding, FinOpsSample, RagQuery, RagSource, Report, AuditLog)]
+TENANT_TABLES = [m.__tablename__ for m in (User, ApiEndpoint, ApiFinding, FinOpsSample, RagQuery, RagSource, Report, ConsensusRun, AuditLog)]

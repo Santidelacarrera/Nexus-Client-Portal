@@ -116,3 +116,26 @@ export type TelemetryEvent =
       type: "finops";
       data: { cluster: string; namespace: string; saved_usd: number; replicas_before: number; replicas_after: number; ts: string; totals: Overview["finops"] };
     };
+
+// ---- answer-review.v1 (portal ⇄ MultiAgent_Consensus). Mirrors contracts/answer-review.v1.schema.json
+export type AgentId = "hallucination_critic" | "tenant_security_auditor" | "coherence_validator";
+export interface GateFinding { code: string; severity: "info" | "low" | "medium" | "high" | "critical"; detail: string; fragmentIndex?: number | null }
+export interface Verdict { agent: AgentId; vote: "approve" | "reject"; score: number; findings: GateFinding[]; rationale: string }
+export interface GateReason { code: string; agent: AgentId | null; severity: GateFinding["severity"]; detail: string }
+export interface GateSource { index: number; score: number; docId: string; source: string; section: string; page: number | null; start: number; end: number; text: string }
+export interface AnswerReview {
+  contract: "answer-review.v1";
+  requestId: string;
+  tenantId: string;
+  question: string;
+  outcome: "RELEASED" | "BLOCKED";
+  answer: string | null;
+  reasons: GateReason[];
+  votes: Verdict[];
+  sources: GateSource[];
+  retrieval: { status: "ok" | "no_results" | "unavailable"; fragments: number; latencyMs: number };
+  timings: { totalMs: number; retrievalMs: number; panelMs: number };
+  escalation: boolean;
+}
+export interface AskResult { runId: string; review: AnswerReview }
+export interface AskRunSummary { runId: string; createdAt: string; question: string; outcome: "RELEASED" | "BLOCKED" | "ERROR"; reasonCodes: string[]; escalation: boolean }
