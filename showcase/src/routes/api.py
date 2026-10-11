@@ -6,6 +6,7 @@ import uuid
 
 from fastapi import APIRouter, Depends, HTTPException, Request, Response
 from slowapi import Limiter
+from sqlalchemy.exc import DBAPIError
 
 from src import db
 from src.config import Settings, get_settings
@@ -47,10 +48,14 @@ async def start_session(request: Request, response: Response, settings: Settings
         try:
             if await db.session_exists(sm, visitor_uuid(claims)):
                 return SessionOut(csrf_token=claims.csrf, policy_version=settings.policy_version)
-        except HTTPException:
-            pass
+        except (HTTPException, DBAPIError, OSError):
+            pass  # si la base falla, create_visitor_session de abajo responde 503 con un mensaje claro
     sid = uuid.uuid4()
-    await db.create_visitor_session(sm, sid, settings)
+    try:
+        await db.create_visitor_session(sm, sid, settings)
+    except (DBAPIError, OSError) as exc:
+        log.error("visitor session storage failed: %s", type(exc.__cause__ or exc).__name__)
+        raise HTTPException(status_code=503, detail="Servicio no disponible por ahora.") from exc
     token, csrf = sess.issue(settings, audience=sess.AUD_VISITOR, sub=str(sid), role="visitor", ttl_seconds=ttl)
     sess.set_cookie(response, settings, settings.visitor_cookie_name, token, ttl)
     return SessionOut(csrf_token=csrf, policy_version=settings.policy_version)
@@ -71,5 +76,9 @@ async def contacto(body: ContactIn, request: Request, settings: Settings = Depen
         )
     except db.SessionInvalid as exc:
         raise HTTPException(status_code=409, detail="La sesión expiró. Recarga la página e inténtalo de nuevo.") from exc
+    except db.StorageUnavailable as exc:
+        # Sin traza completa: el texto de un error de SQLAlchemy incluye los parámetros (nombre, correo, mensaje) = PII.
+        log.error("contact storage failed: %s", type(exc.__cause__ or exc).__name__)
+        raise HTTPException(status_code=503, detail="Servicio no disponible. Tu mensaje no se guardó; inténtalo de nuevo en unos minutos.") from exc
     log.info("contact message stored ref=%s", _ref(message_id))  # sin PII en logs
     return ContactOut(referencia=_ref(message_id), recibido_en=at)

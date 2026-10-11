@@ -1,6 +1,6 @@
 # Nexus Showcase — vitrina comercial
 
-Sitio comercial de Nexus Security & AI Lab: presenta tres proyectos propios (con diagramas de arquitectura, **sin exponer código interno**) y recibe consultas con consentimiento auditable (Ley 21.719 / RGPD). FastAPI + Jinja2 + Tailwind, PostgreSQL 16, coste de licencias: $0.
+Sitio comercial de Nexus Security & AI Lab: presenta siete proyectos propios (con diagramas de arquitectura, **sin exponer código interno**) y recibe consultas con consentimiento auditable (Ley 21.719 / RGPD). FastAPI + Jinja2 + Tailwind, PostgreSQL 16, coste de licencias: $0.
 
 ## Puesta en marcha
 
@@ -64,7 +64,7 @@ make lint security   # linters y escáneres
 
 ## Lo que NO está resuelto (leer antes de publicar)
 
-1. **Las páginas legales son borradores.** Muestran «Sujeto a revisión legal» y marcadores «pendiente de completar». Un abogado debe revisarlas y se deben rellenar `COMPANY_*` y `PRIVACY_CONTACT_EMAIL` en `.env`. No se inventó ningún dato de empresa.
+1. **Las páginas legales son borradores.** Muestran «Sujeto a revisión legal» y marcadores «pendiente de completar». Un abogado debe revisarlas y se deben fijar `COMPANY_LEGAL_NAME` (por defecto el marcador ficticio «Nexus Security SpA»: cámbialo por la razón social real si ella es la responsable del tratamiento) y `PRIVACY_CONTACT_EMAIL`. `COMPANY_TAX_ID` y `COMPANY_ADDRESS` son internos (SecretStr, solo por entorno) y la web no los muestra.
 2. **Sin testimonios ni reseñas**: no existen, y no se simulan. Los proyectos figuran como «Prototipo funcional».
 3. **Fuentes y DOMPurify auto-alojados** (Fontsource, licencia OFL; DOMPurify vendorizado) en vez del CDN de Google: así no se filtra la IP del visitante antes del consentimiento.
 4. **Diagramas SVG generados en servidor** en lugar de Mermaid: pasan la CSP (sin scripts en línea) y llevan título, descripción y alternativa en lista.

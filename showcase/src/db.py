@@ -56,6 +56,10 @@ class SessionInvalid(Exception):
     """La sesión no existe o no es la del contexto (RLS/clave foránea lo rechazó)."""
 
 
+class StorageUnavailable(Exception):
+    """La base de datos no pudo atender la operación (caída, rol sin permisos, esquema sin aplicar...). No es culpa del visitante."""
+
+
 def make_engine(url: str) -> AsyncEngine:
     return create_async_engine(url, pool_pre_ping=True, pool_size=5, max_overflow=5)
 
@@ -90,8 +94,10 @@ async def record_contact(sm: async_sessionmaker[AsyncSession], sid: uuid.UUID, *
             s.add(ConsentRecord(id=consent_id, session_id=sid, consent_key="consentimiento_ley_21719", granted=True, policy_version=policy_version, recorded_at=now))
             await s.flush()  # la FK compuesta exige que el consentimiento exista antes que el mensaje
             s.add(ContactMessage(id=message_id, session_id=sid, consent_id=consent_id, name=name, email=email, message=message, status="nuevo", created_at=now, retain_until=now + timedelta(days=365)))
-    except (IntegrityError, DBAPIError) as exc:
+    except IntegrityError as exc:  # clave foránea / RLS: la sesión no existe o no es la de este contexto
         raise SessionInvalid from exc
+    except (DBAPIError, OSError) as exc:  # infraestructura: antes se confundía con "sesión expirada"
+        raise StorageUnavailable from exc
     return message_id, now
 
 

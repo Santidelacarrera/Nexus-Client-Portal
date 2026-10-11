@@ -17,10 +17,8 @@ def site(settings: Settings) -> dict:
     return {
         "policy_version": settings.policy_version,
         "legal_name": settings.legal(settings.company_legal_name),
-        "tax_id": settings.legal(settings.company_tax_id),
-        "address": settings.legal(settings.company_address),
         "privacy_email": settings.legal(settings.privacy_contact_email),
-        "has_legal_data": all([settings.company_legal_name, settings.company_tax_id, settings.company_address, settings.privacy_contact_email]),
+        "has_legal_data": all([settings.company_legal_name.strip(), settings.privacy_contact_email.strip()]),
     }
 
 

@@ -4,7 +4,7 @@ from html.parser import HTMLParser
 
 import pytest
 
-PAGES = ["/", "/privacidad", "/terminos", "/cookies", "/proyectos/nexus-client-portal", "/proyectos/contextrag-engine", "/proyectos/multiagent-consensus"]
+PAGES = ["/", "/privacidad", "/terminos", "/cookies", "/proyectos/nexus-client-portal", "/proyectos/contextrag-engine", "/proyectos/multiagent-consensus", "/proyectos/docmind", "/proyectos/nexus-telemetry-hub", "/proyectos/aegistrace", "/proyectos/governance-engine"]
 
 
 class Audit(HTMLParser):
@@ -115,3 +115,16 @@ def _ratio(a, b):
 ])
 def test_color_contrast(fg, bg, minimum):
     assert _ratio(fg, bg) >= minimum
+
+
+async def test_internal_company_data_never_reaches_the_ui(client):
+    """RUT y domicilio (solo por entorno) no aparecen en ninguna vista pública."""
+    for path in PAGES + ["/staff"]:
+        html = (await client.get(path)).text
+        assert "99.999.999-9" not in html and "Calle Secreta" not in html, path
+
+
+async def test_catalog_has_more_than_three_projects(client):
+    html = (await client.get("/")).text
+    for name in ("DocMind", "Nexus Telemetry Hub", "AegisTrace", "Governance Engine"):
+        assert name in html

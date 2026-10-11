@@ -30,10 +30,14 @@ class Settings(BaseSettings):
     staff_password_hash: SecretStr | None = None
 
     policy_version: str = "2026-10-borrador-1"
-    company_legal_name: str = ""
-    company_tax_id: str = ""
-    company_address: str = ""
+    # Identidad pública de la vitrina: solo el nombre de la entidad y un correo de privacidad se muestran en la web.
+    # Sustituye el marcador por la razón social real SOLO si ella es la responsable del tratamiento.
+    company_legal_name: str = "Nexus Security SpA"
     privacy_contact_email: str = ""
+    # Datos de cumplimiento internos (RUT y domicilio): se cargan solo por entorno, como SecretStr (no salen en repr ni en logs)
+    # y NINGUNA plantilla ni ruta los expone. Se entregan al titular que ejerza sus derechos, por el correo de privacidad.
+    company_tax_id: SecretStr | None = None
+    company_address: SecretStr | None = None
 
     @field_validator("session_secret")
     @classmethod
