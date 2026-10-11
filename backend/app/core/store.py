@@ -66,6 +66,16 @@ class Store:
             c, reset = self._mem.get(key, (0, 0.0))
             return c if reset > time.monotonic() else 0
 
+    async def set_value(self, key: str, value: int, ttl: int) -> None:
+        if self.redis:
+            try:
+                await self.redis.set(key, value, ex=ttl)
+                return
+            except Exception:  # noqa: BLE001
+                log.warning("Redis error in set_value; using memory fallback")
+        async with self._lock:
+            self._mem[key] = (value, time.monotonic() + ttl)
+
     async def exists(self, key: str) -> bool:
         return await self.count(key) > 0
 

@@ -1,6 +1,7 @@
 "use client";
 import { ShieldCheck } from "lucide-react";
 import QRCode from "qrcode";
+import { useRouter } from "next/navigation";
 import { FormEvent, useState } from "react";
 import { Badge } from "./ui/Badge";
 
@@ -12,6 +13,7 @@ async function call<T>(path: string, body?: unknown): Promise<{ ok: boolean; sta
 }
 
 export function MfaPanel({ initialEnabled, recoveryLeft }: { initialEnabled: boolean; recoveryLeft: number }) {
+  const router = useRouter();
   const [enabled, setEnabled] = useState(initialEnabled);
   const [phase, setPhase] = useState<Phase>("idle");
   const [setup, setSetup] = useState<{ secret: string; uri: string; qr: string } | null>(null);
@@ -31,6 +33,9 @@ export function MfaPanel({ initialEnabled, recoveryLeft }: { initialEnabled: boo
     const code = String(new FormData(e.currentTarget).get("code"));
     const r = await call<{ recovery_codes: string[] }>("enable", { code });
     if (!r.ok || !r.data) return setError("That code is not valid. Check your device clock and try again.");
+    // Policy-confined sessions get a fresh, unconfined token once MFA is on.
+    await fetch("/api/session/refresh", { method: "POST" });
+    router.refresh();
     setCodes(r.data.recovery_codes);
     setEnabled(true);
     setSetup(null);

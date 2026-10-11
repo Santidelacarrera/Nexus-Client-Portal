@@ -5,7 +5,7 @@ import { FormEvent, Suspense, useState } from "react";
 
 function LoginForm() {
   const params = useSearchParams();
-  const [error, setError] = useState<string | null>(params.get("expired") ? "Session expired. Please sign in again." : null);
+  const [error, setError] = useState<string | null>(params.get("expired") ? "Session expired. Please sign in again." : params.get("changed") ? "Sessions ended. Please sign in again." : null);
   const [busy, setBusy] = useState(false);
   const [challenge, setChallenge] = useState<string | null>(null);
 

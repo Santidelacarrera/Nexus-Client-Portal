@@ -1,16 +1,19 @@
 from __future__ import annotations
 
 import asyncio
+import hmac
 import contextlib
 import logging
 from contextlib import asynccontextmanager
 
-from fastapi import APIRouter, FastAPI
+from fastapi import APIRouter, FastAPI, HTTPException, Request, Response
+from prometheus_client import CONTENT_TYPE_LATEST, generate_latest
 from fastapi.middleware.cors import CORSMiddleware
 
 from app.api.routes import audit, auth, finops, mfa, overview, rag, reports, security, webhooks, ws
 from app.core.config import get_settings
 from app.core.keys import get_keyring
+from app.core.observability import ObservabilityMiddleware, configure_logging
 from app.core.security import AuthMiddleware, RateLimitMiddleware, SecurityHeadersMiddleware
 from app.core.store import get_store
 from app.db.bootstrap import apply_schema
@@ -23,6 +26,7 @@ log = logging.getLogger("nexus")
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     s = get_settings()
+    configure_logging(s.json_logs or s.is_production)
     get_keyring()  # fail fast in production when secrets are missing
     await get_store().connect()
     if not s.is_production and s.database_url.startswith("sqlite"):
@@ -46,6 +50,7 @@ def create_app() -> FastAPI:
     app.add_middleware(AuthMiddleware)
     app.add_middleware(RateLimitMiddleware)
     app.add_middleware(SecurityHeadersMiddleware)
+    app.add_middleware(ObservabilityMiddleware)
     app.add_middleware(
         CORSMiddleware, allow_origins=s.cors_origins, allow_credentials=False,
         allow_methods=["GET", "POST", "OPTIONS"], allow_headers=["Authorization", "Content-Type"],
@@ -56,6 +61,17 @@ def create_app() -> FastAPI:
         api.include_router(r)
     app.include_router(api)
     app.include_router(ws.router)
+
+    @app.get("/metrics", include_in_schema=False)
+    def metrics(request: Request) -> Response:
+        """Prometheus scrape endpoint. Off (404) unless METRICS_TOKEN is configured; bearer-protected."""
+        token = get_settings().metrics_token
+        if not token:
+            raise HTTPException(status_code=404)
+        supplied = request.headers.get("authorization", "").removeprefix("Bearer ")
+        if not hmac.compare_digest(supplied, token):
+            raise HTTPException(status_code=401, headers={"WWW-Authenticate": "Bearer"})
+        return Response(generate_latest(), media_type=CONTENT_TYPE_LATEST)
 
     @app.get("/health", include_in_schema=False)
     def health() -> dict:

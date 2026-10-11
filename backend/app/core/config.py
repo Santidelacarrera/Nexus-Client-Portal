@@ -45,6 +45,10 @@ class Settings(BaseSettings):
     rate_limit_tenant_per_minute: int = 600
     rate_limit_login_per_minute: int = 10
     login_max_failures: int = 5
+    # Roles that MUST have MFA. Their sessions are confined to /auth/* until they enrol (e.g. ["owner"]).
+    mfa_required_roles: list[str] = Field(default_factory=list)
+    metrics_token: str | None = None  # /metrics is disabled (404) unless set
+    json_logs: bool = False
     trusted_proxies: bool = False  # honour X-Forwarded-For (behind Envoy)
 
     telemetry_simulator: bool = False

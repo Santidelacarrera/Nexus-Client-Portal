@@ -2,7 +2,7 @@ import { NextResponse } from "next/server";
 import { API, sameOrigin, sessionToken } from "@/lib/server";
 
 // Only these backend areas are reachable from the browser through the BFF.
-const ALLOWED = [/^overview$/, /^auth\/mfa\/(status|setup|enable|disable)$/, /^security\//, /^finops\//, /^rag\//, /^reports(\/|$)/, /^audit(\/|$)/];
+const ALLOWED = [/^overview$/, /^auth\/mfa\/(status|setup|enable|disable)$/, /^auth\/(password|logout-all)$/, /^security\//, /^finops\//, /^rag\//, /^reports(\/|$)/, /^audit(\/|$)/];
 
 async function handle(req: Request, { params }: { params: { path: string[] } }) {
   const path = params.path.join("/");

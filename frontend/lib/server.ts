@@ -20,6 +20,10 @@ export async function backend<T>(path: string, init: RequestInit = {}): Promise<
     headers: { ...(init.headers ?? {}), Authorization: `Bearer ${token}` },
   });
   if (res.status === 401) redirect("/login?expired=1");
+  if (res.status === 403) {
+    const body = await res.clone().json().catch(() => null);
+    if (body?.code === "mfa_enrollment_required") redirect("/account?mfa=required"); // policy: enrol before using the console
+  }
   if (!res.ok) throw new Error(`Backend ${path} → ${res.status}`);
   return (await res.json()) as T;
 }

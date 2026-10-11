@@ -61,6 +61,16 @@ class MfaEnabled(BaseModel):
     recovery_codes: list[str]
 
 
+class MeOut(UserOut):
+    tenant_name: str
+    mfa_setup_required: bool = False
+
+
+class PasswordChange(BaseModel):
+    current_password: str = Field(min_length=1, max_length=256)
+    new_password: str = Field(min_length=1, max_length=256)
+
+
 class RefreshResponse(BaseModel):
     access_token: str
     expires_in: int

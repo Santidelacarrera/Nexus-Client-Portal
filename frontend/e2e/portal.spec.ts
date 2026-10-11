@@ -51,7 +51,7 @@ test("triage a finding, export CSV, and logout revokes the session", async ({ pa
   expect(csv.status()).toBe(200);
   expect(csv.headers()["content-type"]).toContain("text/csv");
 
-  await page.getByRole("button", { name: /sign out/i }).click();
+  await page.getByRole("button", { name: "Sign out", exact: true }).click();
   await expect(page).toHaveURL(/login/);
   // The old bearer token must be dead server-side, not merely forgotten by the browser.
   const replay = await page.request.get("http://localhost:8000/api/v1/overview", { headers: { Authorization: `Bearer ${stolen}` } });
@@ -105,7 +105,7 @@ test("MFA: enrol, login requires second factor, recovery code, disable", async (
   await expect(page.getByTestId("recovery-codes")).toBeVisible();
   const recovery = await page.getByTestId("recovery-codes").locator("li").allTextContents();
   expect(recovery).toHaveLength(8);
-  await page.getByRole("button", { name: /sign out/i }).click();
+  await page.getByRole("button", { name: "Sign out", exact: true }).click();
 
   // password alone is not enough; wrong code is rejected; next-step TOTP is accepted
   await signIn();
@@ -122,4 +122,54 @@ test("MFA: enrol, login requires second factor, recovery code, disable", async (
   await page.getByLabel(/authenticator or recovery code/i).fill(recovery[0]);
   await page.getByRole("button", { name: "Disable MFA" }).click();
   await expect(page.getByRole("button", { name: "Enable MFA" })).toBeVisible();
+});
+
+test("change password ends all sessions; new password works", async ({ page, browser }) => {
+  const email = "analyst@acme-fintech.example";
+  const next = "Rotated-Passphrase-2026";
+  const login = async (p: typeof page, pw: string) => {
+    await p.goto("/login");
+    await p.getByLabel("Identity").fill(email);
+    await p.getByLabel("Passphrase").fill(pw);
+    await p.getByRole("button", { name: /establish session/i }).click();
+  };
+  const other = await (await browser.newContext()).newPage(); // a second device
+  await login(other, PASSWORD);
+  await other.waitForURL(/overview/);
+  await login(page, PASSWORD);
+  await page.waitForURL(/overview/);
+  await page.goto("/account");
+  await page.getByLabel("Current password").fill(PASSWORD);
+  await page.getByLabel("New password (12+ characters)").fill(next);
+  await page.getByLabel("Confirm new password").fill(next);
+  await page.getByRole("button", { name: "Change password" }).click();
+  await expect(page).toHaveURL(/login/);
+  await other.goto("/security"); // the other device's session was revoked server-side
+  await expect(other).toHaveURL(/login/);
+  await login(page, next);
+  await page.waitForURL(/overview/);
+  // restore the demo password through the same UI path is blocked by policy; leave rotated and sign out everywhere
+  await page.goto("/account");
+  await page.getByRole("button", { name: "Sign out everywhere" }).click();
+  await expect(page).toHaveURL(/login/);
+});
+
+// Needs the API started with MFA_REQUIRED_ROLES='["viewer"]' (run in a separate pass).
+test("MFA policy: confined role is sent to enrolment, then unlocked", async ({ page }) => {
+  test.skip(!process.env.E2E_MFA_REQUIRED, "set E2E_MFA_REQUIRED=1 with MFA_REQUIRED_ROLES=[\"viewer\"]");
+  await page.goto("/login");
+  await page.getByLabel("Identity").fill("viewer@acme-fintech.example");
+  await page.getByLabel("Passphrase").fill(PASSWORD);
+  await page.getByRole("button", { name: /establish session/i }).click();
+  await page.waitForURL(/\/account/); // login lands on /overview, which bounces a confined role to enrolment
+  await page.goto("/security"); // any other data page bounces too
+  await expect(page).toHaveURL(/\/account/);
+  await expect(page.getByTestId("mfa-required-banner")).toBeVisible();
+  await page.getByRole("button", { name: "Enable MFA" }).click();
+  const secret = (await page.getByTestId("mfa-secret").textContent())!.trim();
+  await page.getByLabel("6-digit code").fill(totp(secret));
+  await page.getByRole("button", { name: /confirm/i }).click();
+  await expect(page.getByTestId("recovery-codes")).toBeVisible();
+  await page.goto("/security");
+  await expect(page.getByTestId("findings-table")).toBeVisible();
 });
