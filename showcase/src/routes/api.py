@@ -4,11 +4,11 @@ import logging
 from datetime import datetime, timezone
 import uuid
 
-from fastapi import APIRouter, Depends, HTTPException, Request, Response
+from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException, Request, Response
 from slowapi import Limiter
 from sqlalchemy.exc import DBAPIError
 
-from src import db
+from src import db, mailer
 from src.config import Settings, get_settings
 from src.content import load_catalog
 from src.deps import app_sessionmaker, require_visitor, visitor_claims, visitor_uuid
@@ -63,7 +63,7 @@ async def start_session(request: Request, response: Response, settings: Settings
 
 @router.post("/contacto", response_model=ContactOut, status_code=201)
 @limiter.limit("5/hour")
-async def contacto(body: ContactIn, request: Request, settings: Settings = Depends(get_settings)) -> ContactOut:
+async def contacto(body: ContactIn, request: Request, background: BackgroundTasks, settings: Settings = Depends(get_settings)) -> ContactOut:
     sess.require_same_origin(request, settings)
     claims = require_visitor(request, settings)
     sess.check_csrf(request, claims)
@@ -81,4 +81,6 @@ async def contacto(body: ContactIn, request: Request, settings: Settings = Depen
         log.error("contact storage failed: %s", type(exc.__cause__ or exc).__name__)
         raise HTTPException(status_code=503, detail="Servicio no disponible. Tu mensaje no se guardó; inténtalo de nuevo en unos minutos.") from exc
     log.info("contact message stored ref=%s", _ref(message_id))  # sin PII en logs
+    # Aviso interno OPCIONAL: se programa tras responder y ya con el mensaje guardado; si falla, solo hay una advertencia en el log.
+    background.add_task(mailer.notify_new_message, settings, ref=_ref(message_id), name=body.name, email=str(body.email), message=body.message, received_at=at)
     return ContactOut(referencia=_ref(message_id), recibido_en=at)

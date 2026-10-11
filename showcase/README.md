@@ -52,6 +52,15 @@ SHOWCASE_URL=http://localhost:8000 npm run test:a11y   # axe WCAG 2.1 AA + banne
 make lint security   # linters y escáneres
 ```
 
+## Notificación por correo (opcional)
+
+Al guardar una consulta, la API puede avisar por correo al administrador (`src/mailer.py`). Se configura **solo por entorno**
+(`SMTP_HOST`, `SMTP_PORT`, `SMTP_SECURITY` = `starttls` | `ssl` | `none`, `SMTP_USER`, `SMTP_PASSWORD`, `SMTP_FROM`, `ADMIN_EMAIL`).
+Sin `SMTP_HOST` o `ADMIN_EMAIL` queda desactivada. Se envía después de guardar y de responder al visitante: si el servidor SMTP
+falla, el mensaje igual queda en la base de datos y solo se registra una advertencia (sin credenciales ni contenido). El correo
+va únicamente a `ADMIN_EMAIL` y trae nombre, correo y contenido; el asunto solo lleva la referencia. Las credenciales nunca se
+envían sin TLS (salvo a `localhost`).
+
 ## Estado de cumplimiento normativo
 
 | Tema | Estado |

@@ -2,6 +2,7 @@
 from __future__ import annotations
 
 from functools import lru_cache
+from typing import Literal
 
 from pydantic import Field, SecretStr, field_validator, model_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
@@ -34,6 +35,16 @@ class Settings(BaseSettings):
     # Sustituye el marcador por la razón social real SOLO si ella es la responsable del tratamiento.
     company_legal_name: str = "Nexus Security SpA"
     privacy_contact_email: str = ""
+
+    # Notificación OPCIONAL por correo al administrador (SMTP). Si falta SMTP_HOST o ADMIN_EMAIL queda desactivada;
+    # si el envío falla, solo se registra una advertencia: el mensaje ya está guardado en la base de datos.
+    smtp_host: str = ""
+    smtp_port: int = 587
+    smtp_security: Literal["starttls", "ssl", "none"] = "starttls"
+    smtp_user: str = ""
+    smtp_password: SecretStr | None = None
+    smtp_from: str = ""
+    admin_email: str = ""
     # Datos de cumplimiento internos (RUT y domicilio): se cargan solo por entorno, como SecretStr (no salen en repr ni en logs)
     # y NINGUNA plantilla ni ruta los expone. Se entregan al titular que ejerza sus derechos, por el correo de privacidad.
     company_tax_id: SecretStr | None = None

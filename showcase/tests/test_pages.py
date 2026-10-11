@@ -62,7 +62,6 @@ async def test_page_structure(client, path):
 async def test_legal_pages_are_visible_drafts(client, path):
     html = (await client.get(path)).text
     assert "Sujeto a revisión legal" in html
-    assert 'class="todo"' in html  # datos de la empresa no inventados
 
 
 async def test_privacy_mentions_law_and_rights(client):
@@ -128,3 +127,10 @@ async def test_catalog_has_more_than_three_projects(client):
     html = (await client.get("/")).text
     for name in ("DocMind", "Nexus Telemetry Hub", "AegisTrace", "Governance Engine"):
         assert name in html
+
+
+async def test_no_responsable_no_mailto_everything_goes_through_the_form(client):
+    for path in PAGES:
+        html = (await client.get(path)).text
+        assert "Responsable<" not in html and "mailto:" not in html, path
+    assert 'href="/#contacto"' in (await client.get("/privacidad")).text
