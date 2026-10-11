@@ -1,0 +1,8 @@
+-r requirements.txt
+pytest==8.3.4
+pytest-asyncio==0.25.2
+httpx==0.28.1
+bandit==1.8.0
+pip-audit==2.7.3
+# Semgrep va en su propio entorno (sus dependencias de opentelemetry chocan con las de la app):
+#   python -m venv .venv-semgrep && .venv-semgrep/bin/pip install "semgrep==1.99.0" "setuptools<81"

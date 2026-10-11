@@ -1,0 +1,24 @@
+{% extends "base.html" %}
+{% block title %}Panel interno · Nexus Security &amp; AI Lab{% endblock %}
+{% block content %}
+<section class="container-x pt-12" aria-labelledby="staff-title">
+  <h1 id="staff-title" class="text-3xl font-bold">Panel interno</h1>
+  <p class="mt-2 text-sm text-slate-400">Solo personal autorizado. Las consultas se conservan 12 meses.</p>
+
+  <form id="staff-login" class="glass mt-8 max-w-md space-y-5 rounded-2xl p-6" novalidate aria-labelledby="staff-title">
+    <div><label for="s-user" class="mb-1.5 block text-sm font-semibold">Usuario</label><input id="s-user" name="username" class="field" autocomplete="username" required></div>
+    <div><label for="s-pass" class="mb-1.5 block text-sm font-semibold">Contraseña</label><input id="s-pass" name="password" type="password" class="field" autocomplete="current-password" required></div>
+    <p id="s-status" role="status" aria-live="polite" class="text-sm text-amber-300"></p>
+    <button class="btn btn-primary" type="submit">Entrar</button>
+  </form>
+
+  <div id="staff-panel" hidden>
+    <div class="mt-8 flex items-center justify-between gap-4">
+      <h2 class="text-xl font-semibold">Consultas recibidas</h2>
+      <button type="button" class="btn btn-quiet" id="staff-logout">Salir</button>
+    </div>
+    <ul id="staff-list" class="mt-6 space-y-4"></ul>
+    <p id="staff-empty" class="mt-6 text-slate-400" hidden>Aún no hay consultas.</p>
+  </div>
+</section>
+{% endblock %}

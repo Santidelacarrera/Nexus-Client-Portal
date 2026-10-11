@@ -1,0 +1,518 @@
+{
+  "hero_diagram": {
+    "titulo": "Recorrido de una pregunta a través de cuatro límites de confianza",
+    "width": 1120,
+    "height": 256,
+    "boundaries": [
+      {
+        "label": "Internet: no confiable",
+        "x": 8,
+        "y": 8,
+        "w": 176,
+        "h": 130,
+        "tone": "untrusted"
+      },
+      {
+        "label": "Los datos de cada empresa, aislados",
+        "x": 216,
+        "y": 8,
+        "w": 440,
+        "h": 236,
+        "tone": "tenant"
+      },
+      {
+        "label": "Gobernanza: nada sale sin revisión",
+        "x": 688,
+        "y": 8,
+        "w": 424,
+        "h": 236,
+        "tone": "gov"
+      }
+    ],
+    "nodes": [
+      {
+        "id": "cliente",
+        "label": "Cliente",
+        "sub": "navegador",
+        "x": 26,
+        "y": 50,
+        "w": 140,
+        "h": 70,
+        "kind": "actor"
+      },
+      {
+        "id": "portal",
+        "label": "Portal",
+        "sub": "identifica a la empresa",
+        "x": 250,
+        "y": 50,
+        "w": 150,
+        "h": 70,
+        "kind": "service"
+      },
+      {
+        "id": "busqueda",
+        "label": "Búsqueda",
+        "sub": "solo sus documentos",
+        "x": 490,
+        "y": 50,
+        "w": 150,
+        "h": 70,
+        "kind": "service"
+      },
+      {
+        "id": "bd",
+        "label": "PostgreSQL con RLS",
+        "sub": "la base niega el resto",
+        "x": 330,
+        "y": 164,
+        "w": 170,
+        "h": 64,
+        "kind": "store"
+      },
+      {
+        "id": "comite",
+        "label": "Comité",
+        "sub": "tres revisores",
+        "x": 724,
+        "y": 50,
+        "w": 130,
+        "h": 70,
+        "kind": "agent"
+      },
+      {
+        "id": "ok",
+        "label": "Respuesta verificada",
+        "sub": "con sus fuentes",
+        "x": 950,
+        "y": 50,
+        "w": 150,
+        "h": 70,
+        "kind": "ok"
+      },
+      {
+        "id": "stop",
+        "label": "Bloqueada",
+        "sub": "sin respuesta ni fuentes",
+        "x": 740,
+        "y": 164,
+        "w": 190,
+        "h": 64,
+        "kind": "stop"
+      }
+    ],
+    "edges": [
+      {
+        "from": "cliente",
+        "to": "portal",
+        "label": "HTTPS"
+      },
+      {
+        "from": "portal",
+        "to": "busqueda",
+        "label": "empresa"
+      },
+      {
+        "from": "portal",
+        "to": "bd",
+        "style": "dashed"
+      },
+      {
+        "from": "busqueda",
+        "to": "bd",
+        "style": "dashed"
+      },
+      {
+        "from": "busqueda",
+        "to": "comite",
+        "label": "borrador"
+      },
+      {
+        "from": "comite",
+        "to": "ok",
+        "label": "unanimidad"
+      },
+      {
+        "from": "comite",
+        "to": "stop",
+        "label": "un rechazo",
+        "style": "dashed"
+      }
+    ]
+  },
+  "proyectos": [
+    {
+      "slug": "nexus-client-portal",
+      "nombre": "Nexus Client Portal",
+      "resumen": "Una consola web para que cada cliente de tu empresa vea el estado de sus servicios de seguridad, costos en la nube y asistentes de IA, sin ver jamás los datos de otro cliente.",
+      "para_quien": "Empresas de servicios gestionados que entregan resultados a varios clientes y hoy lo hacen con PDF y correos.",
+      "categorias": [
+        "Seguridad",
+        "Datos"
+      ],
+      "estado": "Prototipo funcional",
+      "destacado": true,
+      "capacidades": [
+        "Aislamiento por cliente aplicado en la propia base de datos (Row-Level Security) y en la aplicación",
+        "Acceso con contraseña Argon2id, verificación en dos pasos (TOTP) y sesiones revocables",
+        "Informes firmados digitalmente y cifrados en reposo con una clave distinta por cliente",
+        "Registro de auditoría encadenado por hashes que detecta cualquier alteración",
+        "Panel en vivo de hallazgos de seguridad, ahorro de infraestructura y calidad de respuestas de IA"
+      ],
+      "diagram": {
+        "titulo": "Arquitectura del portal",
+        "width": 940,
+        "height": 300,
+        "boundaries": [
+          {
+            "label": "Internet: no confiable",
+            "x": 8,
+            "y": 40,
+            "w": 168,
+            "h": 160,
+            "tone": "untrusted"
+          },
+          {
+            "label": "Aplicación",
+            "x": 196,
+            "y": 40,
+            "w": 420,
+            "h": 160,
+            "tone": "tenant"
+          },
+          {
+            "label": "Datos con aislamiento por cliente",
+            "x": 636,
+            "y": 40,
+            "w": 296,
+            "h": 250,
+            "tone": "gov"
+          }
+        ],
+        "nodes": [
+          {
+            "id": "nav",
+            "label": "Navegador",
+            "sub": "cookie HttpOnly",
+            "x": 22,
+            "y": 90,
+            "w": 140,
+            "h": 70,
+            "kind": "actor"
+          },
+          {
+            "id": "web",
+            "label": "Interfaz web",
+            "sub": "CSP estricta",
+            "x": 214,
+            "y": 90,
+            "w": 150,
+            "h": 70,
+            "kind": "service"
+          },
+          {
+            "id": "api",
+            "label": "API",
+            "sub": "JWT RS256, límites de uso",
+            "x": 440,
+            "y": 90,
+            "w": 160,
+            "h": 70,
+            "kind": "service"
+          },
+          {
+            "id": "pg",
+            "label": "PostgreSQL",
+            "sub": "RLS forzado",
+            "x": 660,
+            "y": 90,
+            "w": 150,
+            "h": 70,
+            "kind": "store"
+          },
+          {
+            "id": "aud",
+            "label": "Auditoría",
+            "sub": "cadena de hashes",
+            "x": 830,
+            "y": 90,
+            "w": 90,
+            "h": 70,
+            "kind": "store"
+          },
+          {
+            "id": "rep",
+            "label": "Informes firmados",
+            "sub": "RSA-PSS + AES-GCM",
+            "x": 690,
+            "y": 210,
+            "w": 190,
+            "h": 64,
+            "kind": "ok"
+          }
+        ],
+        "edges": [
+          {
+            "from": "nav",
+            "to": "web",
+            "label": "HTTPS"
+          },
+          {
+            "from": "web",
+            "to": "api",
+            "label": "sesión"
+          },
+          {
+            "from": "api",
+            "to": "pg",
+            "label": "consultas parametrizadas"
+          },
+          {
+            "from": "pg",
+            "to": "aud",
+            "style": "dashed"
+          },
+          {
+            "from": "pg",
+            "to": "rep",
+            "style": "dashed"
+          }
+        ]
+      }
+    },
+    {
+      "slug": "contextrag-engine",
+      "nombre": "ContextRAG Engine",
+      "resumen": "Un buscador de conocimiento interno que responde con citas exactas y se niega a contestar cuando no puede respaldar cada afirmación con tus documentos.",
+      "para_quien": "Equipos legales, de soporte o de cumplimiento que necesitan respuestas auditables, no respuestas que suenan bien.",
+      "categorias": [
+        "IA",
+        "Datos"
+      ],
+      "estado": "Prototipo funcional",
+      "destacado": false,
+      "capacidades": [
+        "Búsqueda híbrida: vectorial y por palabras clave, fusionadas con RRF",
+        "Cada afirmación se contrasta con el pasaje que cita; si no alcanza el umbral, no se responde",
+        "Cada consulta queda auditada en PostgreSQL con aislamiento por empresa",
+        "Funciona sin servicios externos para desarrollo y con modelos propios en producción"
+      ],
+      "diagram": {
+        "titulo": "Recorrido de una consulta",
+        "width": 940,
+        "height": 230,
+        "boundaries": [
+          {
+            "label": "Tus documentos",
+            "x": 8,
+            "y": 30,
+            "w": 330,
+            "h": 150,
+            "tone": "untrusted"
+          },
+          {
+            "label": "Verificación",
+            "x": 358,
+            "y": 30,
+            "w": 574,
+            "h": 150,
+            "tone": "gov"
+          }
+        ],
+        "nodes": [
+          {
+            "id": "docs",
+            "label": "Documentos",
+            "sub": "PDF, texto, código",
+            "x": 22,
+            "y": 80,
+            "w": 140,
+            "h": 70,
+            "kind": "actor"
+          },
+          {
+            "id": "idx",
+            "label": "Índices",
+            "sub": "vectorial + palabras",
+            "x": 186,
+            "y": 80,
+            "w": 140,
+            "h": 70,
+            "kind": "store"
+          },
+          {
+            "id": "rrf",
+            "label": "Fusión RRF",
+            "sub": "y reordenamiento",
+            "x": 380,
+            "y": 80,
+            "w": 140,
+            "h": 70,
+            "kind": "service"
+          },
+          {
+            "id": "llm",
+            "label": "Respuesta con citas",
+            "sub": "generador",
+            "x": 548,
+            "y": 80,
+            "w": 160,
+            "h": 70,
+            "kind": "service"
+          },
+          {
+            "id": "nli",
+            "label": "Verificador",
+            "sub": "afirmación por afirmación",
+            "x": 736,
+            "y": 80,
+            "w": 180,
+            "h": 70,
+            "kind": "ok"
+          }
+        ],
+        "edges": [
+          {
+            "from": "docs",
+            "to": "idx",
+            "label": "ingesta"
+          },
+          {
+            "from": "idx",
+            "to": "rrf",
+            "label": "consulta"
+          },
+          {
+            "from": "rrf",
+            "to": "llm"
+          },
+          {
+            "from": "llm",
+            "to": "nli",
+            "label": "umbral 0,95"
+          }
+        ]
+      }
+    },
+    {
+      "slug": "multiagent-consensus",
+      "nombre": "MultiAgent Consensus",
+      "resumen": "Un comité automático de agentes con incentivos distintos que decide si un cambio de código o una respuesta de IA puede avanzar, y deja constancia del porqué.",
+      "para_quien": "Equipos de ingeniería y de IA que quieren una puerta de calidad con trazabilidad antes de publicar.",
+      "categorias": [
+        "IA",
+        "Seguridad"
+      ],
+      "estado": "Prototipo funcional",
+      "destacado": false,
+      "capacidades": [
+        "Revisión de Pull Requests por tres agentes: seguridad ofensiva, arquitectura y costos",
+        "Revisión de respuestas de IA: respaldo en fuentes, aislamiento entre clientes y coherencia",
+        "Protocolo que falla cerrado: si un agente no responde o discrepa, no se libera nada",
+        "Minuta con el resumen del debate, los riesgos mitigados y las condiciones para avanzar"
+      ],
+      "diagram": {
+        "titulo": "Decisión del comité",
+        "width": 940,
+        "height": 230,
+        "boundaries": [
+          {
+            "label": "Entrada",
+            "x": 8,
+            "y": 30,
+            "w": 300,
+            "h": 150,
+            "tone": "untrusted"
+          },
+          {
+            "label": "Tres revisores independientes",
+            "x": 328,
+            "y": 30,
+            "w": 330,
+            "h": 150,
+            "tone": "tenant"
+          },
+          {
+            "label": "Decisión",
+            "x": 678,
+            "y": 30,
+            "w": 254,
+            "h": 150,
+            "tone": "gov"
+          }
+        ],
+        "nodes": [
+          {
+            "id": "in",
+            "label": "Cambio o respuesta",
+            "sub": "a revisar",
+            "x": 22,
+            "y": 80,
+            "w": 170,
+            "h": 70,
+            "kind": "actor"
+          },
+          {
+            "id": "orq",
+            "label": "Orquestador",
+            "sub": "reparte y firma",
+            "x": 205,
+            "y": 80,
+            "w": 90,
+            "h": 70,
+            "kind": "service"
+          },
+          {
+            "id": "ag",
+            "label": "Agentes",
+            "sub": "votan por separado",
+            "x": 360,
+            "y": 80,
+            "w": 170,
+            "h": 70,
+            "kind": "agent"
+          },
+          {
+            "id": "con",
+            "label": "Consenso",
+            "sub": "mayoría o unanimidad",
+            "x": 548,
+            "y": 80,
+            "w": 100,
+            "h": 70,
+            "kind": "service"
+          },
+          {
+            "id": "ver",
+            "label": "Veredicto",
+            "sub": "con minuta",
+            "x": 720,
+            "y": 80,
+            "w": 170,
+            "h": 70,
+            "kind": "ok"
+          }
+        ],
+        "edges": [
+          {
+            "from": "in",
+            "to": "orq"
+          },
+          {
+            "from": "orq",
+            "to": "ag"
+          },
+          {
+            "from": "ag",
+            "to": "con",
+            "label": "votos"
+          },
+          {
+            "from": "con",
+            "to": "ver"
+          }
+        ]
+      }
+    }
+  ]
+}

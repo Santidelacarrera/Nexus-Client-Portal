@@ -1,0 +1,11 @@
+.env
+__pycache__/
+*.pyc
+.pytest_cache/
+node_modules/
+src/static/css/app.css
+src/static/fonts/
+src/static/vendor/
+coverage/
+test-results/
+playwright-report/
