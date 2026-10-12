@@ -12,6 +12,8 @@
 | 2026-10-12 | Dockerfile: `ARG NODE_IMAGE/PYTHON_IMAGE` y secreto opcional `ca` | Permite construir tras proxies con CA propia y con Docker Hub limitado sin cambiar la imagen final |
 | 2026-10-12 | `pip-audit` limpio actualizando fastapi/starlette/pyjwt/jinja2/slowapi (ronda anterior) | Avisos reales; 53 tests siguieron en verde |
 
+| 2026-10-12 | Revisión legal: según el dueño, un abogado revisó las páginas legales y acordó que, por ahora, el responsable/representante es Santiago como persona natural; la empresa se registrará si el proyecto se lanza | Cierra la decisión sobre RUT/domicilio (siguen sin mostrarse). Cuando se registre la empresa, actualizar `COMPANY_LEGAL_NAME` y volver a pedir revisión |
+
 ## Evidencia (ejecutada 2026-10-12)
 | Comprobación | Resultado |
 |---|---|
@@ -29,7 +31,7 @@
 ## Pendientes para Santiago
 1. **Semgrep `p/owasp-top-ten` no pudo ejecutarse** (proxy bloquea `semgrep.dev`). Correr `make security` o `verify.sh` sin `SKIP_SEMGREP`.
 2. **`verify_showcase.ps1`** no estaba accesible: ejecutarlo en Windows y comparar con `scripts/verify.sh`.
-3. **Revisión por abogado** de `/privacidad`, `/terminos`, `/cookies` (son borradores). Confirmar si omitir RUT y domicilio basta para identificar al responsable según la Ley 21.719; si no, hay que reincorporarlos.
+3. ~~Revisión por abogado~~ — **hecha según el dueño** (2026-10-12; no hay constancia escrita en el repo: guardar el correo/dictamen del abogado). Al registrar la empresa, actualizar los datos y las páginas.
 4. Completar `COMPANY_LEGAL_NAME` y `PRIVACY_CONTACT_EMAIL` reales en el `.env` de producción.
 5. **SMTP real**: elegir proveedor sin costo, definir `SMTP_*`, `MAIL_FROM`, `CONTACT_NOTIFY_TO` y probar un envío real (aquí solo hubo SMTP simulado). Revisar SPF/DKIM del dominio.
 6. **Despliegue** (no lo hice, fuera de mis límites): dominio, TLS, `ENVIRONMENT=production`, `COOKIE_SECURE=true`, `ALLOWED_HOSTS`, `TRUSTED_PROXY` solo tras un proxy confiable; HSTS se activa en producción.
