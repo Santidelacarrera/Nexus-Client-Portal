@@ -1,0 +1,162 @@
+{% extends "base.html" %}
+{% block content %}
+
+{# ───────── Hero: el diagrama ES el mensaje. Es el único elemento con movimiento al cargar. ───────── #}
+<section class="relative overflow-hidden border-b border-white/5" aria-labelledby="hero-title">
+  <div class="pointer-events-none absolute inset-0 bg-[linear-gradient(rgba(148,163,184,0.045)_1px,transparent_1px),linear-gradient(90deg,rgba(148,163,184,0.045)_1px,transparent_1px)] bg-[size:44px_44px] [mask-image:radial-gradient(ellipse_70%_60%_at_30%_30%,#000,transparent)]" aria-hidden="true"></div>
+  <div class="container-x relative grid gap-x-12 gap-y-8 py-14 grid-cols-[minmax(0,1fr)] sm:py-20 lg:grid-cols-12 lg:py-20">
+    <h1 id="hero-title" class="text-[2.1rem] font-bold leading-[1.06] sm:text-5xl lg:col-span-8 lg:text-6xl">Software que protege tus datos mientras trabaja con ellos</h1>
+    <div class="lg:col-span-4 lg:self-end">
+      <p class="max-w-measure text-lg leading-relaxed text-slate-300">Diseñamos y construimos plataformas de ciberseguridad e inteligencia artificial para empresas que no pueden permitirse filtrar información de sus clientes.</p>
+      <div class="mt-7 flex flex-wrap gap-3">
+        <a class="btn btn-primary" href="#proyectos">Ver proyectos</a>
+        <a class="btn btn-quiet" href="#contacto">Hablemos de tu caso</a>
+      </div>
+    </div>
+    <figure class="glass rounded-2xl p-3 shadow-glass sm:p-5 lg:col-span-12">
+      <div class="overflow-x-auto"><div class="min-w-[760px]">{{ render_svg(catalog.hero_diagram, "hero", true) }}</div></div>
+      <figcaption class="mt-3 px-1">
+        <p class="text-sm text-slate-300">Cada pregunta cruza fronteras. En cada una, algo verifica quién eres, qué puedes ver y si la respuesta puede salir.</p>
+        <details class="mt-3 text-sm text-slate-400">
+          <summary class="inline-flex min-h-[44px] cursor-pointer items-center rounded-md font-medium text-signal-soft underline-offset-4 hover:underline">Ver el recorrido como lista</summary>
+          <ol class="mt-2 list-decimal space-y-1 pl-5">{% for s in diagram_steps(catalog.hero_diagram) %}<li>{{ s }}</li>{% endfor %}</ol>
+        </details>
+      </figcaption>
+    </figure>
+  </div>
+</section>
+
+{# ───────── Criterios: cada borde repite la zona del diagrama (gris punteado, azul, verde) ───────── #}
+<section class="container-x pt-20" aria-labelledby="criterios-title">
+  <h2 id="criterios-title" class="max-w-[22ch] text-3xl font-bold sm:text-4xl">Tres decisiones que no negociamos</h2>
+  <div class="mt-10 grid gap-x-10 gap-y-8 md:grid-cols-3">
+    <article class="border-t-2 border-signal pt-5">
+      <h3 class="text-xl font-semibold">Cada empresa, en su compartimento</h3>
+      <p class="mt-3 leading-relaxed text-slate-300">Los datos de cada cliente viven separados, y es la propia base de datos la que niega el acceso cruzado, no solo el código de la aplicación.</p>
+    </article>
+    <article class="border-t-2 border-verified pt-5">
+      <h3 class="text-xl font-semibold">Nada sale sin revisión</h3>
+      <p class="mt-3 leading-relaxed text-slate-300">Antes de mostrar una respuesta de IA, tres revisores independientes la validan. Si uno falla o discrepa, la respuesta no se muestra.</p>
+    </article>
+    <article class="border-t-2 border-dashed border-slate-400 pt-5">
+      <h3 class="text-xl font-semibold">Desconfiamos de lo que llega de fuera</h3>
+      <p class="mt-3 leading-relaxed text-slate-300">Todo lo que viene de Internet se valida, se limita en frecuencia y se registra. Los secretos nunca viven en el código.</p>
+    </article>
+  </div>
+</section>
+
+{# ───────── Vitrina ───────── #}
+<section id="proyectos" class="container-x pt-24" aria-labelledby="proyectos-title">
+  <div class="flex flex-wrap items-end justify-between gap-6">
+    <div>
+      <h2 id="proyectos-title" class="text-3xl font-bold sm:text-4xl">Proyectos que puedes contratar</h2>
+      <p class="mt-3 max-w-measure text-slate-300">Tres productos propios que adaptamos a tu infraestructura. Mostramos cómo funcionan por dentro, sin publicar su código.</p>
+    </div>
+    <div id="project-filters" hidden>{# se muestra por JS: sin JavaScript no hay filtros y se ven todos los proyectos #}
+      <div class="flex flex-wrap gap-2" role="group" aria-label="Filtrar proyectos por tema">
+        <button type="button" class="filter" data-filter="todos" aria-pressed="true">Todos</button>
+        {% for c in catalog.categorias %}<button type="button" class="filter" data-filter="{{ c }}" aria-pressed="false">{{ c }}</button>{% endfor %}
+      </div>
+    </div>
+  </div>
+
+  <p id="filter-status" class="sr-only" role="status" aria-live="polite"></p>
+
+  <div class="mt-10 grid gap-6 lg:grid-cols-2" id="project-grid">
+    {% for p in catalog.proyectos %}
+    <article class="glass flex flex-col rounded-2xl p-6 shadow-glass transition-transform duration-200 hover:-translate-y-0.5 {% if p.destacado %}lg:col-span-2 lg:grid lg:grid-cols-[1.1fr_1fr] lg:gap-10 lg:rounded-3xl lg:p-10{% endif %}"
+             data-project data-categories="{{ p.categorias | join('|') }}" aria-labelledby="p-{{ p.slug }}-title">
+      <div class="flex flex-col">
+        <div class="flex flex-wrap items-center gap-2">
+          <span class="chip chip-ok"><span class="h-1.5 w-1.5 rounded-full bg-verified" aria-hidden="true"></span>{{ p.estado }}</span>
+          {% for c in p.categorias %}<span class="chip">{{ c }}</span>{% endfor %}
+        </div>
+        <h3 id="p-{{ p.slug }}-title" class="mt-5 text-2xl font-bold {% if p.destacado %}lg:text-4xl{% endif %}">{{ p.nombre }}</h3>
+        <p class="mt-3 leading-relaxed text-slate-300">{{ p.resumen }}</p>
+        <p class="mt-3 text-sm leading-relaxed text-slate-400"><span class="font-semibold text-slate-300">Pensado para:</span> {{ p.para_quien }}</p>
+        <div class="mt-auto pt-6">
+          <a class="btn btn-quiet" href="/proyectos/{{ p.slug }}" data-open-project="{{ p.slug }}" aria-haspopup="dialog">Ver cómo funciona<span class="sr-only"> {{ p.nombre }}</span></a>
+        </div>
+      </div>
+      <ul class="mt-6 space-y-3 text-sm leading-relaxed text-slate-300 {% if p.destacado %}lg:mt-0 lg:text-base{% endif %}">
+        {% for cap in (p.capacidades if p.destacado else p.capacidades[:3]) %}
+        <li class="flex gap-3"><svg class="mt-1 h-4 w-4 shrink-0 text-verified" viewBox="0 0 20 20" fill="currentColor" aria-hidden="true"><path fill-rule="evenodd" d="M16.7 5.3a1 1 0 0 1 0 1.4l-7.5 7.5a1 1 0 0 1-1.4 0L3.3 9.7a1 1 0 1 1 1.4-1.4l3.8 3.8 6.8-6.8a1 1 0 0 1 1.4 0Z" clip-rule="evenodd"/></svg><span>{{ cap }}</span></li>
+        {% endfor %}
+      </ul>
+    </article>
+    {% endfor %}
+  </div>
+</section>
+
+<dialog id="project-dialog" aria-labelledby="dialog-title" class="m-auto w-[min(1000px,94vw)] max-h-[90vh] overflow-y-auto rounded-2xl border border-slate-600 bg-ink-900 p-0 text-slate-200 shadow-glass">
+  <div class="sticky top-0 z-10 flex items-center justify-between gap-4 border-b border-white/10 bg-ink-900/95 px-6 py-3 backdrop-blur-md">
+    <p id="dialog-title" class="font-display text-base font-semibold text-slate-50">Cómo funciona</p>
+    <button type="button" class="btn btn-quiet !min-h-[40px] !py-1.5" data-close-dialog>Cerrar</button>
+  </div>
+  <div id="dialog-body" class="p-6 sm:p-8" aria-live="polite"></div>
+</dialog>
+
+{# ───────── Método: aquí SÍ hay una secuencia real ───────── #}
+<section id="metodo" class="container-x pt-24" aria-labelledby="metodo-title">
+  <h2 id="metodo-title" class="max-w-[24ch] text-3xl font-bold sm:text-4xl">Cómo trabajamos contigo</h2>
+  <ol class="mt-10 grid gap-8 md:grid-cols-4">
+    {% for titulo, texto in [("Conversamos", "Entendemos qué datos manejas, quién los usa y qué no puede pasar."), ("Definimos amenazas", "Dibujamos el recorrido de la información y dónde podría fallar, antes de escribir código."), ("Construimos con pruebas", "Cada protección importante tiene una prueba automática que falla si alguien la rompe."), ("Entregamos y traspasamos", "Recibes el código, la documentación y la capacitación para operarlo sin depender de nosotros.")] %}
+    <li class="relative border-l border-slate-600 pl-5">
+      <span class="absolute -left-[7px] top-1.5 h-3 w-3 rounded-full border-2 border-signal bg-ink-950" aria-hidden="true"></span>
+      <h3 class="text-lg font-semibold">{{ titulo }}</h3>
+      <p class="mt-2 text-sm leading-relaxed text-slate-300">{{ texto }}</p>
+    </li>
+    {% endfor %}
+  </ol>
+</section>
+
+{# ───────── Contacto y venta: solo lo imprescindible ───────── #}
+<section id="contacto" class="container-x pt-24" aria-labelledby="contacto-title">
+  <div class="grid gap-12 lg:grid-cols-[1fr_1.15fr]">
+    <div>
+      <h2 id="contacto-title" class="text-3xl font-bold sm:text-4xl">Cuéntanos qué necesitas proteger</h2>
+      <p class="mt-4 max-w-measure leading-relaxed text-slate-300">Te respondemos por correo. Solo pedimos tu nombre, tu correo y tu mensaje: nada más.</p>
+      <dl class="mt-8 space-y-4 text-sm">
+        <div><dt class="font-semibold text-slate-200">Qué hacemos con tus datos</dt><dd class="mt-1 max-w-measure leading-relaxed text-slate-400">Los usamos únicamente para responder esta consulta y los conservamos 12 meses. No los compartimos ni los usamos para publicidad. Detalle completo en la <a class="text-signal-soft underline underline-offset-4" href="/privacidad">política de privacidad</a>.</dd></div>
+        <div><dt class="font-semibold text-slate-200">Responsable</dt><dd class="mt-1 text-slate-400">{% if site.has_legal_data %}{{ site.legal_name }}{% else %}<span class="todo">Pendiente de completar antes de publicar</span>{% endif %}</dd></div>
+      </dl>
+    </div>
+
+    <form id="contact-form" class="glass rounded-2xl p-6 shadow-glass sm:p-8" novalidate aria-labelledby="contacto-title" autocomplete="on">
+      <div class="space-y-5">
+        <div>
+          <label for="c-name" class="mb-1.5 block text-sm font-semibold text-slate-100">Nombre</label>
+          <input id="c-name" name="name" type="text" class="field" required minlength="2" maxlength="120" autocomplete="name" aria-describedby="c-name-err">
+          <p id="c-name-err" class="field-error" hidden></p>
+        </div>
+        <div>
+          <label for="c-email" class="mb-1.5 block text-sm font-semibold text-slate-100">Correo electrónico</label>
+          <input id="c-email" name="email" type="email" class="field" required maxlength="254" autocomplete="email" aria-describedby="c-email-err">
+          <p id="c-email-err" class="field-error" hidden></p>
+        </div>
+        <div>
+          <label for="c-message" class="mb-1.5 block text-sm font-semibold text-slate-100">Mensaje</label>
+          <textarea id="c-message" name="message" rows="5" class="field" required minlength="10" maxlength="2000" aria-describedby="c-message-hint c-message-err"></textarea>
+          <p id="c-message-hint" class="mt-1.5 text-xs text-slate-400"><span id="c-count">0</span> de 2000 caracteres</p>
+          <p id="c-message-err" class="field-error" hidden></p>
+        </div>
+
+        <div class="hp" aria-hidden="true"><label>No rellenar este campo<input type="text" name="website" tabindex="-1" autocomplete="off"></label></div>
+
+        <div>
+          <div class="flex items-start gap-3">
+            <input id="c-consent" name="consentimiento_ley_21719" type="checkbox" class="mt-1 h-5 w-5 rounded border-slate-500 text-signal focus:ring-signal-soft" required aria-describedby="c-consent-err">
+            <label for="c-consent" class="text-sm leading-relaxed text-slate-300">Acepto que Nexus Security &amp; AI Lab use mi nombre, mi correo y mi mensaje para responder esta consulta, según la <a class="text-signal-soft underline underline-offset-4" href="/privacidad">política de privacidad</a> (versión <span data-policy-version>{{ site.policy_version }}</span>). Puedo retirar mi consentimiento cuando quiera.</label>
+          </div>
+          <p id="c-consent-err" class="field-error" hidden></p>
+        </div>
+      </div>
+
+      <div class="mt-7 flex flex-wrap items-center gap-4">
+        <button type="submit" class="btn btn-primary" id="c-submit">Enviar consulta</button>
+        <p id="c-status" role="status" aria-live="polite" class="text-sm text-slate-300"></p>
+      </div>
+    </form>
+  </div>
+</section>
+{% endblock %}

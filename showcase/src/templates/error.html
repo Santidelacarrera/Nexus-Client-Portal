@@ -1,0 +1,9 @@
+{% extends "base.html" %}
+{% block title %}{% if status == 404 %}No encontramos esa página{% else %}Algo salió mal{% endif %} · Nexus Security &amp; AI Lab{% endblock %}
+{% block content %}
+<section class="container-x py-24">
+  <h1 class="text-4xl font-bold">{% if status == 404 %}No encontramos esa página{% else %}Algo salió mal de nuestro lado{% endif %}</h1>
+  <p class="mt-4 max-w-measure text-slate-300">{% if status == 404 %}El enlace puede estar roto o la página cambió de lugar. Vuelve al inicio y busca desde ahí.{% else %}No se guardó nada incorrecto. Intenta de nuevo en unos minutos.{% endif %}</p>
+  <p class="mt-8"><a class="btn btn-primary" href="/">Volver al inicio</a></p>
+</section>
+{% endblock %}

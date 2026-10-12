@@ -1,0 +1,34 @@
+{# Banner granular. Está al principio del DOM para que el orden de tabulación lo alcance primero. Se muestra por JS
+   solo si no hay una decisión vigente para la versión actual de la política. #}
+<section id="cookie-banner" role="dialog" aria-modal="false" aria-labelledby="cookie-title" aria-describedby="cookie-desc" hidden
+         class="fixed inset-x-3 bottom-3 z-50 mx-auto max-w-3xl rounded-2xl border border-slate-600/70 bg-ink-900/95 p-5 shadow-glass backdrop-blur-md sm:p-6">
+  <h2 id="cookie-title" class="font-display text-lg font-semibold text-slate-50">Tú decides qué se guarda</h2>
+  <p id="cookie-desc" class="mt-2 max-w-measure text-sm leading-relaxed text-slate-300">
+    Este sitio solo usa lo imprescindible para funcionar. Hoy no cargamos analítica ni servicios de terceros; si algún día lo hacemos, no se activará nada sin tu permiso. <a class="text-signal-soft underline underline-offset-4" href="/cookies">Más detalles</a>.
+  </p>
+
+  <form id="cookie-choices" class="mt-4 hidden space-y-3 border-t border-white/10 pt-4" aria-label="Elegir categorías de cookies">
+    <fieldset>
+      <legend class="sr-only">Categorías</legend>
+      <label class="flex items-start gap-3 py-1.5">
+        <input type="checkbox" checked disabled class="mt-1 h-5 w-5 rounded border-slate-500 text-signal">
+        <span class="text-sm"><strong class="text-slate-100">Necesarias</strong><br><span class="text-slate-400">Mantienen la sesión del formulario y recuerdan esta elección. Siempre activas.</span></span>
+      </label>
+      <label class="flex items-start gap-3 py-1.5">
+        <input type="checkbox" name="analytics" class="mt-1 h-5 w-5 rounded border-slate-500 text-signal focus:ring-signal-soft">
+        <span class="text-sm"><strong class="text-slate-100">Analíticas</strong><br><span class="text-slate-400">Medir el uso del sitio. Ninguna activa hoy.</span></span>
+      </label>
+      <label class="flex items-start gap-3 py-1.5">
+        <input type="checkbox" name="thirdparty" class="mt-1 h-5 w-5 rounded border-slate-500 text-signal focus:ring-signal-soft">
+        <span class="text-sm"><strong class="text-slate-100">Servicios de terceros</strong><br><span class="text-slate-400">Contenido incrustado de otras empresas. Ninguno activo hoy.</span></span>
+      </label>
+    </fieldset>
+    <button type="submit" class="btn btn-primary">Guardar mi elección</button>
+  </form>
+
+  <div class="mt-4 flex flex-wrap gap-3" id="cookie-actions">
+    <button type="button" class="btn btn-quiet" data-consent-action="reject">Rechazar opcionales</button>
+    <button type="button" class="btn btn-quiet" data-consent-action="customize" aria-expanded="false" aria-controls="cookie-choices">Elegir</button>
+    <button type="button" class="btn btn-primary" data-consent-action="accept">Aceptar todas</button>
+  </div>
+</section>

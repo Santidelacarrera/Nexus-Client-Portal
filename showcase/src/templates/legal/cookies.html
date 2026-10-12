@@ -1,0 +1,30 @@
+{% extends "base.html" %}
+{% block title %}Política de cookies (borrador) · Nexus Security &amp; AI Lab{% endblock %}
+{% block content %}
+<article class="container-x pt-12">
+  {% include "legal/_draft.html" %}
+  <div class="prose-legal mt-8">
+    <h1>Política de cookies</h1>
+    <p>Una cookie es un pequeño archivo que el navegador guarda al visitar un sitio. Aquí también hablamos del almacenamiento local del navegador (<code>localStorage</code>), que cumple una función parecida.</p>
+
+    <h2>Qué usa este sitio hoy</h2>
+    <table>
+      <thead><tr><th>Nombre</th><th>Categoría</th><th>Para qué sirve</th><th>Duración</th></tr></thead>
+      <tbody>
+        <tr><td><code>__Host-nx_sid</code> (cookie)</td><td>Necesaria</td><td>Identifica de forma anónima tu sesión mientras usas el formulario de contacto y permite enlazar tu consentimiento con tu mensaje. Solo se crea cuando abres el formulario. HttpOnly, Secure, SameSite=Strict.</td><td>24 horas</td></tr>
+        <tr><td><code>nexus_cookie_consent_v1</code> (localStorage)</td><td>Necesaria</td><td>Recuerda tu elección sobre cookies y la versión de la política que viste. No sale de tu navegador.</td><td>Hasta que la borres o cambie la política</td></tr>
+      </tbody>
+    </table>
+
+    <h2>Qué NO usa</h2>
+    <p>Hoy este sitio no carga analítica, publicidad, mapas, vídeos incrustados ni ningún script o fuente de terceros: las tipografías y bibliotecas están alojadas en nuestro propio servidor, de modo que tu IP no se envía a otras empresas al visitarnos.</p>
+
+    <h2>Cómo funcionan tus preferencias</h2>
+    <p>Las categorías «analíticas» y «servicios de terceros» existen para el futuro. Si algún día las activamos, su código <strong>no se cargará</strong> hasta que aceptes esa categoría de forma explícita, y podrás cambiar de opinión en cualquier momento desde «Preferencias de cookies», al final de cada página.</p>
+    <p><button type="button" class="btn btn-quiet not-prose" data-open-cookie-preferences>Abrir preferencias de cookies</button></p>
+
+    <h2>Más información</h2>
+    <p>Consulta la <a href="/privacidad">política de privacidad</a>.</p>
+  </div>
+</article>
+{% endblock %}

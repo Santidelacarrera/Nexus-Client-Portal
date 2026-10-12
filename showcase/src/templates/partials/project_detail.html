@@ -1,0 +1,23 @@
+<article aria-labelledby="pd-{{ p.slug }}-title">
+  <div class="flex flex-wrap items-center gap-2">
+    <span class="chip chip-ok"><span class="h-1.5 w-1.5 rounded-full bg-verified" aria-hidden="true"></span>{{ p.estado }}</span>
+    {% for c in p.categorias %}<span class="chip">{{ c }}</span>{% endfor %}
+  </div>
+  <{% if as_page %}h1{% else %}h2{% endif %} id="pd-{{ p.slug }}-title" class="mt-4 text-3xl font-bold">{{ p.nombre }}</{% if as_page %}h1{% else %}h2{% endif %}>
+  <p class="mt-3 max-w-measure leading-relaxed text-slate-300">{{ p.resumen }}</p>
+
+  <figure class="mt-8 rounded-xl border border-white/10 bg-ink-950/60 p-3 sm:p-5">
+    <div class="overflow-x-auto"><div class="min-w-[640px]">{{ render_svg(p.diagram, "d-" ~ p.slug) }}</div></div>
+    <figcaption class="mt-3">
+      <details class="text-sm text-slate-400">
+        <summary class="inline-flex min-h-[44px] cursor-pointer items-center rounded-md font-medium text-signal-soft underline-offset-4 hover:underline">Ver el diagrama como lista</summary>
+        <ol class="mt-2 list-decimal space-y-1 pl-5">{% for s in diagram_steps(p.diagram) %}<li>{{ s }}</li>{% endfor %}</ol>
+      </details>
+    </figcaption>
+  </figure>
+
+  <h3 class="mt-8 text-lg font-semibold">Qué incluye</h3>
+  <ul class="mt-3 space-y-2 text-slate-300">{% for cap in p.capacidades %}<li class="flex gap-3"><span class="mt-2 h-1.5 w-1.5 shrink-0 rounded-full bg-verified" aria-hidden="true"></span><span>{{ cap }}</span></li>{% endfor %}</ul>
+  <p class="mt-6 text-sm text-slate-400"><span class="font-semibold text-slate-300">Pensado para:</span> {{ p.para_quien }}</p>
+  <p class="mt-6"><a class="btn btn-primary" href="/#contacto" data-close-dialog>Quiero hablar de este proyecto</a></p>
+</article>

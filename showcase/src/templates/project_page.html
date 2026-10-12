@@ -1,0 +1,9 @@
+{% extends "base.html" %}
+{% block title %}{{ p.nombre }} · Nexus Security &amp; AI Lab{% endblock %}
+{% block description %}{{ p.resumen }}{% endblock %}
+{% block content %}
+<div class="container-x pt-12">
+  <nav aria-label="Ruta de navegación" class="text-sm"><a class="text-signal-soft underline underline-offset-4" href="/#proyectos">Proyectos</a> <span aria-hidden="true" class="text-slate-500">/</span> <span class="text-slate-300">{{ p.nombre }}</span></nav>
+  <div class="mt-8">{% set as_page = true %}{% include "partials/project_detail.html" %}</div>
+</div>
+{% endblock %}

@@ -1,0 +1,67 @@
+<!doctype html>
+<html lang="es" class="h-full">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>{% block title %}{% if page_title %}{{ page_title }} · {% endif %}Nexus Security &amp; AI Lab{% endblock %}</title>
+  <meta name="description" content="{% block description %}Diseñamos y construimos plataformas de ciberseguridad e inteligencia artificial para empresas que no pueden permitirse filtrar información de sus clientes.{% endblock %}">
+  <meta name="policy-version" content="{{ site.policy_version }}">
+  <meta name="color-scheme" content="dark">
+  <meta name="theme-color" content="#090A0F">
+  <link rel="icon" href="/static/img/favicon.svg" type="image/svg+xml">
+  <link rel="preload" href="/static/fonts/space-grotesk-latin.woff2" as="font" type="font/woff2" crossorigin>
+  <link rel="preload" href="/static/fonts/plus-jakarta-sans-latin.woff2" as="font" type="font/woff2" crossorigin>
+  <link rel="stylesheet" href="/static/css/app.css">
+  <script type="module" src="/static/js/app.js"></script>
+</head>
+<body class="min-h-full">
+  <a href="#contenido" class="sr-only focus:not-sr-only focus:fixed focus:left-4 focus:top-4 focus:z-[60] focus:rounded-lg focus:bg-signal focus:px-4 focus:py-3 focus:font-semibold focus:text-ink-950">Saltar al contenido</a>
+
+  {% include "partials/cookie_banner.html" %}
+
+  <header class="sticky top-0 z-40 border-b border-white/5 bg-ink-950/80 backdrop-blur-md">
+    <div class="container-x flex min-h-[64px] flex-wrap items-center justify-between gap-x-6 gap-y-2 py-2">
+      <a href="/" class="flex items-center gap-3 rounded-md font-display text-lg font-bold tracking-tight text-slate-50" aria-label="Nexus Security &amp; AI Lab, inicio">
+        <img src="/static/img/logo.svg" width="28" height="28" alt="" class="h-7 w-7">
+        <span>Nexus <span class="font-medium text-slate-400">Security &amp; AI Lab</span></span>
+      </a>
+      <nav aria-label="Principal">
+        <ul class="flex items-center gap-1 text-[0.95rem] font-medium">
+          <li><a class="inline-flex min-h-[44px] items-center rounded-md px-3 text-slate-300 hover:text-white" href="/#proyectos">Proyectos</a></li>
+          <li><a class="inline-flex min-h-[44px] items-center rounded-md px-3 text-slate-300 hover:text-white" href="/#metodo">Cómo trabajamos</a></li>
+          <li><a class="btn btn-primary !min-h-[40px] !py-1.5" href="/#contacto">Hablemos</a></li>
+        </ul>
+      </nav>
+    </div>
+  </header>
+
+  <main id="contenido" tabindex="-1">
+    {% block content %}{% endblock %}
+  </main>
+
+  <footer class="mt-24 border-t border-white/5 bg-ink-900/60">
+    <div class="container-x grid gap-10 py-12 md:grid-cols-[1.4fr_1fr_1fr]">
+      <div>
+        <p class="font-display text-lg font-bold text-slate-50">Nexus Security &amp; AI Lab</p>
+        <p class="mt-3 max-w-measure text-sm leading-relaxed text-slate-400">Construimos software de seguridad e inteligencia artificial a medida. No publicamos reseñas ni casos de clientes que no existan: cuando los tengamos, los mostraremos con permiso de cada cliente.</p>
+      </div>
+      <nav aria-label="Información legal">
+        <p class="text-sm font-semibold text-slate-200">Legal</p>
+        <ul class="mt-3 space-y-1 text-sm">
+          <li><a class="inline-block min-h-[32px] py-1 text-slate-400 underline-offset-4 hover:text-white hover:underline" href="/privacidad">Política de privacidad</a></li>
+          <li><a class="inline-block min-h-[32px] py-1 text-slate-400 underline-offset-4 hover:text-white hover:underline" href="/terminos">Términos y condiciones</a></li>
+          <li><a class="inline-block min-h-[32px] py-1 text-slate-400 underline-offset-4 hover:text-white hover:underline" href="/cookies">Política de cookies</a></li>
+          <li><button type="button" class="inline-block min-h-[32px] py-1 text-left text-slate-400 underline-offset-4 hover:text-white hover:underline" data-open-cookie-preferences>Preferencias de cookies</button></li>
+        </ul>
+      </nav>
+      <div>
+        <p class="text-sm font-semibold text-slate-200">Contacto</p>
+        <p class="mt-3 text-sm leading-relaxed text-slate-400">
+          {% if site.has_legal_data %}{{ site.legal_name }}<br><a class="underline underline-offset-4 hover:text-white" href="mailto:{{ site.privacy_email }}">{{ site.privacy_email }}</a>{% else %}<span class="todo">Datos de la empresa pendientes de completar</span>{% endif %}
+        </p>
+        <p class="mt-5 text-xs leading-relaxed text-slate-400">Tipografías Space Grotesk y Plus Jakarta Sans (licencia SIL OFL), alojadas en este sitio.</p>
+      </div>
+    </div>
+  </footer>
+</body>
+</html>
