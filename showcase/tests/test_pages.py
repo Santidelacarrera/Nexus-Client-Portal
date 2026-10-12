@@ -115,3 +115,24 @@ def _ratio(a, b):
 ])
 def test_color_contrast(fg, bg, minimum):
     assert _ratio(fg, bg) >= minimum
+
+
+async def test_rut_and_domicilio_never_appear(app, client):
+    """Decisión del dueño: ni RUT ni domicilio en ninguna página, ni siquiera si alguien los pone en el entorno."""
+    import os
+
+    os.environ["COMPANY_TAX_ID"] = "99.999.999-9"
+    os.environ["COMPANY_ADDRESS"] = "Calle Falsa 123, Santiago"
+    try:
+        from src.config import Settings, get_settings
+
+        app.dependency_overrides[get_settings] = lambda: Settings(company_legal_name="Nexus Security & AI Lab", privacy_contact_email="privacidad@example.test")
+        for path in PAGES + ["/staff", "/no-existe"]:
+            html = (await client.get(path)).text
+            assert "99.999.999-9" not in html and "Calle Falsa" not in html, path
+            low = html.lower()
+            assert "rut" not in re.findall(r"\b[a-záéíóúñ]+\b", low), path
+            assert "domicilio" not in low, path
+        assert "privacidad@example.test" in (await client.get("/privacidad")).text  # lo demás sí se muestra
+    finally:
+        os.environ.pop("COMPANY_TAX_ID", None); os.environ.pop("COMPANY_ADDRESS", None)

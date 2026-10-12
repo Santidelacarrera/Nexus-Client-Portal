@@ -2,6 +2,7 @@
 from __future__ import annotations
 
 from functools import lru_cache
+from typing import Literal
 
 from pydantic import Field, SecretStr, field_validator, model_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
@@ -31,9 +32,17 @@ class Settings(BaseSettings):
 
     policy_version: str = "2026-10-borrador-1"
     company_legal_name: str = ""
-    company_tax_id: str = ""
-    company_address: str = ""
     privacy_contact_email: str = ""
+
+    # Aviso por correo de cada consulta (opcional). Sin SMTP_HOST o sin CONTACT_NOTIFY_TO queda desactivado.
+    smtp_host: str = ""
+    smtp_port: int = 587
+    smtp_security: Literal["starttls", "ssl", "none"] = "starttls"
+    smtp_username: str = ""
+    smtp_password: SecretStr | None = None
+    smtp_timeout_seconds: int = 10
+    mail_from: str = ""
+    contact_notify_to: str = ""
 
     @field_validator("session_secret")
     @classmethod

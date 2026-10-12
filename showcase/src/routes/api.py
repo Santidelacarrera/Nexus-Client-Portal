@@ -10,6 +10,7 @@ from slowapi import Limiter
 from src import db
 from src.config import Settings, get_settings
 from src.content import load_catalog
+from src.notify import notify_contact
 from src.deps import app_sessionmaker, require_visitor, visitor_claims, visitor_uuid
 from src.schemas import ContactIn, ContactOut, ProjectOut, SessionOut
 from src.security import session as sess
@@ -71,5 +72,7 @@ async def contacto(body: ContactIn, request: Request, settings: Settings = Depen
         )
     except db.SessionInvalid as exc:
         raise HTTPException(status_code=409, detail="La sesión expiró. Recarga la página e inténtalo de nuevo.") from exc
-    log.info("contact message stored ref=%s", _ref(message_id))  # sin PII en logs
-    return ContactOut(referencia=_ref(message_id), recibido_en=at)
+    ref = _ref(message_id)
+    log.info("contact message stored ref=%s", ref)  # sin PII en logs
+    await notify_contact(settings, ref=ref, name=body.name, email=str(body.email), message=body.message, policy_version=settings.policy_version)
+    return ContactOut(referencia=ref, recibido_en=at)
