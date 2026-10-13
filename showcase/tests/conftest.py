@@ -42,6 +42,7 @@ os.environ.update(
     DATABASE_URL=_dsn(TEST_DB, "showcase_app", APP_PW, "+asyncpg"), STAFF_DATABASE_URL=_dsn(TEST_DB, "showcase_staff", STAFF_PW, "+asyncpg"),
     STAFF_USERNAME=STAFF_USER, STAFF_PASSWORD_HASH=PasswordHasher().hash(STAFF_PASSWORD),
     ALLOWED_HOSTS='["testserver","localhost"]',
+    COMPANY_TAX_ID="99.999.999-9", COMPANY_ADDRESS="Calle Secreta 123, Santiago",
 )
 
 
