@@ -6,7 +6,9 @@
 | Fecha | Decisión | Motivo |
 |---|---|---|
 | 2026-10-12 | Quitar RUT y domicilio de configuración, plantillas y páginas (`COMPANY_TAX_ID`/`COMPANY_ADDRESS` eliminadas) | Instrucción del dueño; un test (`test_rut_and_domicilio_never_appear`) y `verify.sh` lo hacen cumplir. Riesgo legal anotado en Pendientes |
-| 2026-10-12 | Aviso por correo con `smtplib` estándar en hilo, mejor esfuerzo | Sin dependencias nuevas ($0); la consulta ya está guardada, un fallo SMTP no debe perderla |
+| 2026-10-12 | Integrada la rama `claude/sweet-johnson-6sbti2` (commits de santidlc1 del 11-oct: `mailer.py` con BackgroundTasks, 4 proyectos nuevos, diagramas, `contact.js`). Se descartó mi `notify.py` duplicado y se conservó `mailer.py` (más completo: rechaza credenciales sin TLS, tarea en segundo plano) | Dos implementaciones paralelas del mismo aviso; una sola mantiene el código simple. Se le añadió mi corrección de codificación |
+| 2026-10-12 | Nombre por defecto «Nexus Security & AI Lab» en vez de «Nexus Security SpA» | «SpA» afirma una sociedad que aún no existe (el responsable es Santiago como persona natural, según el abogado) |
+| 2026-10-12 | (descartado por la integración) Aviso por correo con `smtplib` en hilo, mejor esfuerzo | Sin dependencias nuevas ($0); la consulta ya está guardada, un fallo SMTP no debe perderla |
 | 2026-10-12 | Cuerpo del correo en `quoted-printable` UTF-8 | Los tests mostraron texto corrupto con servidores sin 8BITMIME |
 | 2026-10-12 | Sin datos personales en logs de notificación | Minimización (Ley 21.719); probado con `caplog` |
 | 2026-10-12 | Dockerfile: `ARG NODE_IMAGE/PYTHON_IMAGE` y secreto opcional `ca` | Permite construir tras proxies con CA propia y con Docker Hub limitado sin cambiar la imagen final |
@@ -18,7 +20,7 @@
 | Comprobación | Resultado |
 |---|---|
 | `./scripts/verify.sh` (SKIP_SEMGREP=1) | `VERIFICACIÓN COMPLETA: OK` |
-| `pytest -q` | 60 passed (incluye 6 de correo con SMTP simulado y 1 de RUT/domicilio) |
+| `pytest -q` | ver PR de integración (incluye `test_mailer.py` y RUT/domicilio) |
 | `npx jest` | 9 passed |
 | `npm run lint` · `bandit --ini .bandit -r src` | sin hallazgos |
 | `pip-audit -r requirements.txt` | No known vulnerabilities found |
@@ -33,7 +35,7 @@
 2. **`verify_showcase.ps1`** no estaba accesible: ejecutarlo en Windows y comparar con `scripts/verify.sh`.
 3. ~~Revisión por abogado~~ — **hecha según el dueño** (2026-10-12; no hay constancia escrita en el repo: guardar el correo/dictamen del abogado). Al registrar la empresa, actualizar los datos y las páginas.
 4. Completar `COMPANY_LEGAL_NAME` y `PRIVACY_CONTACT_EMAIL` reales en el `.env` de producción.
-5. **SMTP real**: elegir proveedor sin costo, definir `SMTP_*`, `MAIL_FROM`, `CONTACT_NOTIFY_TO` y probar un envío real (aquí solo hubo SMTP simulado). Revisar SPF/DKIM del dominio.
+5. **SMTP real**: elegir proveedor sin costo, definir `SMTP_*`, `SMTP_FROM`, `ADMIN_EMAIL` y probar un envío real (aquí solo hubo SMTP simulado). Revisar SPF/DKIM del dominio.
 6. **Despliegue** (no lo hice, fuera de mis límites): dominio, TLS, `ENVIRONMENT=production`, `COOKIE_SECURE=true`, `ALLOWED_HOSTS`, `TRUSTED_PROXY` solo tras un proxy confiable; HSTS se activa en producción.
 7. Redis (`RATELIMIT_STORAGE_URI`) si hay más de un proceso/réplica.
 8. Cron diario para `SELECT purge_expired_contact_messages();` y respaldo cifrado de PostgreSQL; contraseñas de los roles `showcase_app`/`showcase_staff` con `scripts/db_roles.sh`.

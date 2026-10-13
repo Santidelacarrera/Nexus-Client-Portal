@@ -4,13 +4,13 @@ import logging
 from datetime import datetime, timezone
 import uuid
 
-from fastapi import APIRouter, Depends, HTTPException, Request, Response
+from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException, Request, Response
 from slowapi import Limiter
+from sqlalchemy.exc import DBAPIError
 
-from src import db
+from src import db, mailer
 from src.config import Settings, get_settings
 from src.content import load_catalog
-from src.notify import notify_contact
 from src.deps import app_sessionmaker, require_visitor, visitor_claims, visitor_uuid
 from src.schemas import ContactIn, ContactOut, ProjectOut, SessionOut
 from src.security import session as sess
@@ -48,10 +48,14 @@ async def start_session(request: Request, response: Response, settings: Settings
         try:
             if await db.session_exists(sm, visitor_uuid(claims)):
                 return SessionOut(csrf_token=claims.csrf, policy_version=settings.policy_version)
-        except HTTPException:
-            pass
+        except (HTTPException, DBAPIError, OSError):
+            pass  # si la base falla, create_visitor_session de abajo responde 503 con un mensaje claro
     sid = uuid.uuid4()
-    await db.create_visitor_session(sm, sid, settings)
+    try:
+        await db.create_visitor_session(sm, sid, settings)
+    except (DBAPIError, OSError) as exc:
+        log.error("visitor session storage failed: %s", type(exc.__cause__ or exc).__name__)
+        raise HTTPException(status_code=503, detail="Servicio no disponible por ahora.") from exc
     token, csrf = sess.issue(settings, audience=sess.AUD_VISITOR, sub=str(sid), role="visitor", ttl_seconds=ttl)
     sess.set_cookie(response, settings, settings.visitor_cookie_name, token, ttl)
     return SessionOut(csrf_token=csrf, policy_version=settings.policy_version)
@@ -59,7 +63,7 @@ async def start_session(request: Request, response: Response, settings: Settings
 
 @router.post("/contacto", response_model=ContactOut, status_code=201)
 @limiter.limit("5/hour")
-async def contacto(body: ContactIn, request: Request, settings: Settings = Depends(get_settings)) -> ContactOut:
+async def contacto(body: ContactIn, request: Request, background: BackgroundTasks, settings: Settings = Depends(get_settings)) -> ContactOut:
     sess.require_same_origin(request, settings)
     claims = require_visitor(request, settings)
     sess.check_csrf(request, claims)
@@ -72,7 +76,11 @@ async def contacto(body: ContactIn, request: Request, settings: Settings = Depen
         )
     except db.SessionInvalid as exc:
         raise HTTPException(status_code=409, detail="La sesión expiró. Recarga la página e inténtalo de nuevo.") from exc
-    ref = _ref(message_id)
-    log.info("contact message stored ref=%s", ref)  # sin PII en logs
-    await notify_contact(settings, ref=ref, name=body.name, email=str(body.email), message=body.message, policy_version=settings.policy_version)
-    return ContactOut(referencia=ref, recibido_en=at)
+    except db.StorageUnavailable as exc:
+        # Sin traza completa: el texto de un error de SQLAlchemy incluye los parámetros (nombre, correo, mensaje) = PII.
+        log.error("contact storage failed: %s", type(exc.__cause__ or exc).__name__)
+        raise HTTPException(status_code=503, detail="Servicio no disponible. Tu mensaje no se guardó; inténtalo de nuevo en unos minutos.") from exc
+    log.info("contact message stored ref=%s", _ref(message_id))  # sin PII en logs
+    # Aviso interno OPCIONAL: se programa tras responder y ya con el mensaje guardado; si falla, solo hay una advertencia en el log.
+    background.add_task(mailer.notify_new_message, settings, ref=_ref(message_id), name=body.name, email=str(body.email), message=body.message, received_at=at)
+    return ContactOut(referencia=_ref(message_id), recibido_en=at)

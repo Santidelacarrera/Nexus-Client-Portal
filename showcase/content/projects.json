@@ -64,10 +64,10 @@
         "id": "bd",
         "label": "PostgreSQL con RLS",
         "sub": "la base niega el resto",
-        "x": 330,
+        "x": 310,
         "y": 164,
-        "w": 170,
-        "h": 64,
+        "w": 200,
+        "h": 70,
         "kind": "store"
       },
       {
@@ -234,9 +234,9 @@
             "id": "aud",
             "label": "Auditoría",
             "sub": "cadena de hashes",
-            "x": 830,
+            "x": 826,
             "y": 90,
-            "w": 90,
+            "w": 104,
             "h": 70,
             "kind": "store"
           },
@@ -448,7 +448,7 @@
             "sub": "a revisar",
             "x": 22,
             "y": 80,
-            "w": 170,
+            "w": 150,
             "h": 70,
             "kind": "actor"
           },
@@ -456,9 +456,9 @@
             "id": "orq",
             "label": "Orquestador",
             "sub": "reparte y firma",
-            "x": 205,
+            "x": 190,
             "y": 80,
-            "w": 90,
+            "w": 116,
             "h": 70,
             "kind": "service"
           },
@@ -510,6 +510,504 @@
           {
             "from": "con",
             "to": "ver"
+          }
+        ]
+      }
+    },
+    {
+      "slug": "docmind",
+      "nombre": "DocMind",
+      "resumen": "Un asistente que lee los documentos de tu empresa (contratos, informes, manuales) y responde preguntas citando de qué página sale cada dato. Todo se procesa en tu propio equipo.",
+      "para_quien": "Equipos legales, de cumplimiento o de operaciones que pierden horas buscando información en carpetas llenas de PDF.",
+      "categorias": [
+        "IA",
+        "Datos"
+      ],
+      "estado": "En diseño",
+      "destacado": false,
+      "capacidades": [
+        "Lectura de PDF, Word y notas, con extracción de texto y tablas",
+        "Búsqueda por significado en un índice que vive en tu infraestructura",
+        "Cada respuesta cita el documento y la página de origen para poder comprobarla",
+        "Funciona sin enviar tus documentos a servicios externos",
+        "Una persona revisa y aprueba antes de que un resultado se use en un informe"
+      ],
+      "diagram": {
+        "titulo": "Arquitectura de DocMind",
+        "width": 940,
+        "height": 230,
+        "boundaries": [
+          {
+            "label": "Tus documentos",
+            "x": 8,
+            "y": 30,
+            "w": 190,
+            "h": 150,
+            "tone": "untrusted"
+          },
+          {
+            "label": "Procesamiento en tu equipo",
+            "x": 218,
+            "y": 30,
+            "w": 530,
+            "h": 150,
+            "tone": "tenant"
+          },
+          {
+            "label": "Revisión humana",
+            "x": 768,
+            "y": 30,
+            "w": 164,
+            "h": 150,
+            "tone": "gov"
+          }
+        ],
+        "nodes": [
+          {
+            "id": "docs",
+            "label": "Documentos",
+            "sub": "PDF, Word, notas",
+            "x": 22,
+            "y": 80,
+            "w": 160,
+            "h": 70,
+            "kind": "actor"
+          },
+          {
+            "id": "ext",
+            "label": "Extracción",
+            "sub": "texto y tablas",
+            "x": 238,
+            "y": 80,
+            "w": 120,
+            "h": 70,
+            "kind": "service"
+          },
+          {
+            "id": "idx",
+            "label": "Índice",
+            "sub": "vectorial local",
+            "x": 420,
+            "y": 80,
+            "w": 120,
+            "h": 70,
+            "kind": "store"
+          },
+          {
+            "id": "res",
+            "label": "Respuesta",
+            "sub": "con fuentes",
+            "x": 602,
+            "y": 80,
+            "w": 120,
+            "h": 70,
+            "kind": "agent"
+          },
+          {
+            "id": "rev",
+            "label": "Aprobación",
+            "sub": "de una persona",
+            "x": 784,
+            "y": 80,
+            "w": 132,
+            "h": 70,
+            "kind": "ok"
+          }
+        ],
+        "edges": [
+          {
+            "from": "docs",
+            "to": "ext",
+            "label": "carga"
+          },
+          {
+            "from": "ext",
+            "to": "idx",
+            "label": "partes"
+          },
+          {
+            "from": "idx",
+            "to": "res",
+            "label": "busca"
+          },
+          {
+            "from": "res",
+            "to": "rev",
+            "label": "cita"
+          }
+        ]
+      }
+    },
+    {
+      "slug": "nexus-telemetry-hub",
+      "nombre": "Nexus Telemetry Hub",
+      "resumen": "Recoge registros y métricas de tus sistemas, los ordena en una cola y los analiza con modelos que corren localmente, para detectar anomalías y automatizar tareas repetitivas sin depender de la nube.",
+      "para_quien": "Equipos de TI y seguridad que quieren automatizar la revisión de logs y alertas con costos controlados.",
+      "categorias": [
+        "Automatización",
+        "Datos",
+        "Seguridad"
+      ],
+      "estado": "En diseño",
+      "destacado": false,
+      "capacidades": [
+        "Ingesta de logs y métricas mediante una cola (Redis) que absorbe picos de tráfico",
+        "Análisis con modelos de IA locales: los datos no salen de tu red",
+        "Almacenamiento en PostgreSQL con aislamiento por cliente (Row-Level Security)",
+        "Reglas de automatización con registro de cada acción ejecutada",
+        "Alertas que una persona confirma antes de cualquier acción sensible"
+      ],
+      "diagram": {
+        "titulo": "Arquitectura de Nexus Telemetry Hub",
+        "width": 940,
+        "height": 230,
+        "boundaries": [
+          {
+            "label": "Fuentes",
+            "x": 8,
+            "y": 30,
+            "w": 190,
+            "h": 150,
+            "tone": "untrusted"
+          },
+          {
+            "label": "Pipeline local",
+            "x": 218,
+            "y": 30,
+            "w": 530,
+            "h": 150,
+            "tone": "tenant"
+          },
+          {
+            "label": "Alertas",
+            "x": 768,
+            "y": 30,
+            "w": 164,
+            "h": 150,
+            "tone": "gov"
+          }
+        ],
+        "nodes": [
+          {
+            "id": "ev",
+            "label": "Eventos",
+            "sub": "logs y métricas",
+            "x": 22,
+            "y": 80,
+            "w": 160,
+            "h": 70,
+            "kind": "actor"
+          },
+          {
+            "id": "cola",
+            "label": "Cola",
+            "sub": "Redis",
+            "x": 238,
+            "y": 80,
+            "w": 120,
+            "h": 70,
+            "kind": "service"
+          },
+          {
+            "id": "wk",
+            "label": "Analizador",
+            "sub": "modelo local",
+            "x": 420,
+            "y": 80,
+            "w": 120,
+            "h": 70,
+            "kind": "agent"
+          },
+          {
+            "id": "pg",
+            "label": "PostgreSQL",
+            "sub": "RLS por cliente",
+            "x": 602,
+            "y": 80,
+            "w": 120,
+            "h": 70,
+            "kind": "store"
+          },
+          {
+            "id": "pan",
+            "label": "Alertas",
+            "sub": "revisión humana",
+            "x": 784,
+            "y": 80,
+            "w": 132,
+            "h": 70,
+            "kind": "ok"
+          }
+        ],
+        "edges": [
+          {
+            "from": "ev",
+            "to": "cola",
+            "label": "envía"
+          },
+          {
+            "from": "cola",
+            "to": "wk",
+            "label": "lee"
+          },
+          {
+            "from": "wk",
+            "to": "pg",
+            "label": "guarda"
+          },
+          {
+            "from": "pg",
+            "to": "pan",
+            "label": "muestra"
+          }
+        ]
+      }
+    },
+    {
+      "slug": "aegistrace",
+      "nombre": "AegisTrace",
+      "resumen": "Un registro de auditoría a prueba de manipulaciones: cada acción de tus sistemas o agentes de IA queda firmada y encadenada, de modo que cualquier alteración posterior se detecta.",
+      "para_quien": "Empresas que deben demostrar quién hizo qué y cuándo (auditorías, incidentes, cumplimiento) y no quieren depender de logs editables.",
+      "categorias": [
+        "Seguridad",
+        "Datos"
+      ],
+      "estado": "Concepto",
+      "destacado": false,
+      "capacidades": [
+        "Cada evento se firma con una clave por servicio (HMAC) antes de guardarse",
+        "Registro de solo-agregar: los eventos no se editan ni se borran",
+        "Encadenado por hashes: modificar un evento invalida los siguientes",
+        "Verificador independiente que reporta exactamente dónde se rompe la cadena",
+        "Exportación de evidencia para revisiones internas y de terceros"
+      ],
+      "diagram": {
+        "titulo": "Arquitectura de AegisTrace",
+        "width": 940,
+        "height": 230,
+        "boundaries": [
+          {
+            "label": "Servicios y agentes",
+            "x": 8,
+            "y": 30,
+            "w": 190,
+            "h": 150,
+            "tone": "untrusted"
+          },
+          {
+            "label": "Registro con integridad",
+            "x": 218,
+            "y": 30,
+            "w": 350,
+            "h": 150,
+            "tone": "tenant"
+          },
+          {
+            "label": "Verificación",
+            "x": 588,
+            "y": 30,
+            "w": 344,
+            "h": 150,
+            "tone": "gov"
+          }
+        ],
+        "nodes": [
+          {
+            "id": "srv",
+            "label": "Servicios",
+            "sub": "emiten eventos",
+            "x": 22,
+            "y": 80,
+            "w": 160,
+            "h": 70,
+            "kind": "actor"
+          },
+          {
+            "id": "firma",
+            "label": "Firma",
+            "sub": "HMAC por evento",
+            "x": 238,
+            "y": 80,
+            "w": 120,
+            "h": 70,
+            "kind": "service"
+          },
+          {
+            "id": "log",
+            "label": "Registro",
+            "sub": "solo agrega",
+            "x": 420,
+            "y": 80,
+            "w": 130,
+            "h": 70,
+            "kind": "store"
+          },
+          {
+            "id": "ver",
+            "label": "Verificador",
+            "sub": "recalcula la cadena",
+            "x": 606,
+            "y": 80,
+            "w": 150,
+            "h": 70,
+            "kind": "agent"
+          },
+          {
+            "id": "ok",
+            "label": "Evidencia",
+            "sub": "cadena íntegra",
+            "x": 786,
+            "y": 80,
+            "w": 130,
+            "h": 70,
+            "kind": "ok"
+          }
+        ],
+        "edges": [
+          {
+            "from": "srv",
+            "to": "firma",
+            "label": "evento"
+          },
+          {
+            "from": "firma",
+            "to": "log",
+            "label": "firmado"
+          },
+          {
+            "from": "log",
+            "to": "ver",
+            "label": "lee"
+          },
+          {
+            "from": "ver",
+            "to": "ok",
+            "label": "íntegra"
+          }
+        ]
+      }
+    },
+    {
+      "slug": "governance-engine",
+      "nombre": "Governance Engine",
+      "resumen": "Un sistema que obliga a que las ideas y cambios propuestos por agentes de IA pasen por revisores independientes y por una aprobación humana, antes de que se haga nada.",
+      "para_quien": "Equipos que usan IA para generar propuestas o código y necesitan control, trazabilidad y una persona responsable de la decisión final.",
+      "categorias": [
+        "IA",
+        "Seguridad",
+        "Automatización"
+      ],
+      "estado": "Prototipo interno",
+      "destacado": false,
+      "capacidades": [
+        "Panel de cuatro roles (arquitectura, seguridad, código y cumplimiento) que vota con firma digital",
+        "Reglas fijas que bloquean propuestas fuera de política, sin depender de un modelo",
+        "Tribunal de defensa, fiscalía y juez para casos discutidos",
+        "Solo una persona puede aprobar: ningún agente construye ni despliega por su cuenta",
+        "Todo queda como borrador revisable y con bitácora de acciones"
+      ],
+      "diagram": {
+        "titulo": "Arquitectura de Governance Engine",
+        "width": 940,
+        "height": 230,
+        "boundaries": [
+          {
+            "label": "Agentes de IA",
+            "x": 8,
+            "y": 30,
+            "w": 190,
+            "h": 150,
+            "tone": "untrusted"
+          },
+          {
+            "label": "Revisión automática",
+            "x": 218,
+            "y": 30,
+            "w": 530,
+            "h": 150,
+            "tone": "tenant"
+          },
+          {
+            "label": "Decisión humana",
+            "x": 768,
+            "y": 30,
+            "w": 164,
+            "h": 150,
+            "tone": "gov"
+          }
+        ],
+        "nodes": [
+          {
+            "id": "prop",
+            "label": "Propuesta",
+            "sub": "borrador",
+            "x": 22,
+            "y": 80,
+            "w": 160,
+            "h": 70,
+            "kind": "actor"
+          },
+          {
+            "id": "panel",
+            "label": "Panel",
+            "sub": "4 roles votan y firman",
+            "x": 238,
+            "y": 80,
+            "w": 120,
+            "h": 70,
+            "kind": "agent"
+          },
+          {
+            "id": "gate",
+            "label": "Reglas",
+            "sub": "bloquean lo no permitido",
+            "x": 420,
+            "y": 80,
+            "w": 120,
+            "h": 70,
+            "kind": "service"
+          },
+          {
+            "id": "trib",
+            "label": "Tribunal",
+            "sub": "si hay discrepancia",
+            "x": 602,
+            "y": 80,
+            "w": 120,
+            "h": 70,
+            "kind": "agent"
+          },
+          {
+            "id": "apr",
+            "label": "Aprobación",
+            "sub": "solo una persona",
+            "x": 784,
+            "y": 80,
+            "w": 132,
+            "h": 70,
+            "kind": "ok"
+          }
+        ],
+        "edges": [
+          {
+            "from": "prop",
+            "to": "panel",
+            "label": "borrador"
+          },
+          {
+            "from": "panel",
+            "to": "gate",
+            "label": "votos"
+          },
+          {
+            "from": "gate",
+            "to": "trib",
+            "label": "caso"
+          },
+          {
+            "from": "trib",
+            "to": "apr",
+            "label": "veredicto"
           }
         ]
       }

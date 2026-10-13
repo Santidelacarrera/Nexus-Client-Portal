@@ -1,6 +1,6 @@
 # Nexus Showcase — vitrina comercial
 
-Sitio comercial de Nexus Security & AI Lab: presenta tres proyectos propios (con diagramas de arquitectura, **sin exponer código interno**) y recibe consultas con consentimiento auditable (Ley 21.719 / RGPD). FastAPI + Jinja2 + Tailwind, PostgreSQL 16, coste de licencias: $0.
+Sitio comercial de Nexus Security & AI Lab: presenta siete proyectos propios (con diagramas de arquitectura, **sin exponer código interno**) y recibe consultas con consentimiento auditable (Ley 21.719 / RGPD). FastAPI + Jinja2 + Tailwind, PostgreSQL 16, coste de licencias: $0.
 
 ## Puesta en marcha
 
@@ -13,10 +13,6 @@ APP_DB_PASSWORD=… STAFF_DB_PASSWORD=… ADMIN_URL=… make db-roles
 python scripts/hash_password.py  # genera STAFF_PASSWORD_HASH (Argon2id)
 make run                         # usa --no-server-header: no se anuncia el servidor
 ```
-
-## Aviso por correo de cada consulta
-
-Opcional. Con `SMTP_HOST`, `MAIL_FROM` y `CONTACT_NOTIFY_TO` definidos, cada consulta se guarda en la base y además se envía un aviso (Asunto: «Nueva consulta NX-… — Nexus Security & AI Lab», `Reply-To` = correo del visitante). Si el SMTP falla, la consulta **no se pierde** (ya está guardada) y solo queda un aviso en el registro, sin datos personales. TLS por defecto (`SMTP_SECURITY=starttls|ssl`); `none` solo para pruebas locales. Probado con un servidor SMTP simulado (`tests/test_notify.py`); no se probó contra un proveedor real.
 
 ## Verificación en un comando
 
@@ -66,19 +62,28 @@ SHOWCASE_URL=http://localhost:8000 npm run test:a11y   # axe WCAG 2.1 AA + banne
 make lint security   # linters y escáneres
 ```
 
+## Notificación por correo (opcional)
+
+Al guardar una consulta, la API puede avisar por correo al administrador (`src/mailer.py`). Se configura **solo por entorno**
+(`SMTP_HOST`, `SMTP_PORT`, `SMTP_SECURITY` = `starttls` | `ssl` | `none`, `SMTP_USER`, `SMTP_PASSWORD`, `SMTP_FROM`, `ADMIN_EMAIL`).
+Sin `SMTP_HOST` o `ADMIN_EMAIL` queda desactivada. Se envía después de guardar y de responder al visitante: si el servidor SMTP
+falla, el mensaje igual queda en la base de datos y solo se registra una advertencia (sin credenciales ni contenido). El correo
+va únicamente a `ADMIN_EMAIL` y trae nombre, correo y contenido; el asunto solo lleva la referencia. Las credenciales nunca se
+envían sin TLS (salvo a `localhost`).
+
 ## Estado de cumplimiento normativo
 
 | Tema | Estado |
 |---|---|
 | Consentimiento (Ley 21.719 / RGPD) | Implementado y probado: casilla explícita, registro con fecha, versión de política e id de sesión; retiro posible escribiendo al contacto de privacidad |
 | Páginas `/privacidad`, `/terminos`, `/cookies` | **Borradores. Sujetos a revisión legal por un abogado antes de publicar** |
-| Datos de la empresa | Solo razón social y correo de privacidad (`.env`). **El sitio nunca muestra RUT ni domicilio** (decisión del dueño; hay un test que lo impide). Un abogado debe confirmar que eso basta para identificar al responsable (Ley 21.719) |
+| Datos de la empresa | Solo el nombre comercial (`COMPANY_LEGAL_NAME`); RUT y domicilio, si se cargan, son internos y **el sitio nunca los muestra** (decisión del dueño; hay un test que lo impide). Un abogado debe confirmar que eso basta para identificar al responsable (Ley 21.719) |
 | Banner de cookies | Hoy el sitio no usa analítica ni terceros; el banner y su bloqueo previo ya están listos para cuando se añadan |
 | Retención | Mensajes: 12 meses (`purge_expired_contact_messages()`, ejecútala con cron) |
 
 ## Lo que NO está resuelto (leer antes de publicar)
 
-1. **Las páginas legales son borradores.** Muestran «Sujeto a revisión legal» y marcadores «pendiente de completar». Un abogado debe revisarlas y se deben rellenar `COMPANY_LEGAL_NAME` y `PRIVACY_CONTACT_EMAIL` en `.env`. No se inventó ningún dato de empresa.
+1. **Las páginas legales son borradores.** Muestran «Sujeto a revisión legal» y marcadores «pendiente de completar». Un abogado debe revisarlas y se deben fijar `COMPANY_LEGAL_NAME` (por defecto el marcador ficticio «Nexus Security & AI Lab»: cámbialo por la razón social real si ella es la responsable del tratamiento) y `PRIVACY_CONTACT_EMAIL`. `COMPANY_TAX_ID` y `COMPANY_ADDRESS` son internos (SecretStr, solo por entorno) y la web no los muestra.
 2. **Sin testimonios ni reseñas**: no existen, y no se simulan. Los proyectos figuran como «Prototipo funcional».
 3. **Fuentes y DOMPurify auto-alojados** (Fontsource, licencia OFL; DOMPurify vendorizado) en vez del CDN de Google: así no se filtra la IP del visitante antes del consentimiento.
 4. **Diagramas SVG generados en servidor** en lugar de Mermaid: pasan la CSP (sin scripts en línea) y llevan título, descripción y alternativa en lista.

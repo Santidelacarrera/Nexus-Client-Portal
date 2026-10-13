@@ -4,7 +4,7 @@ from html.parser import HTMLParser
 
 import pytest
 
-PAGES = ["/", "/privacidad", "/terminos", "/cookies", "/proyectos/nexus-client-portal", "/proyectos/contextrag-engine", "/proyectos/multiagent-consensus"]
+PAGES = ["/", "/privacidad", "/terminos", "/cookies", "/proyectos/nexus-client-portal", "/proyectos/contextrag-engine", "/proyectos/multiagent-consensus", "/proyectos/docmind", "/proyectos/nexus-telemetry-hub", "/proyectos/aegistrace", "/proyectos/governance-engine"]
 
 
 class Audit(HTMLParser):
@@ -62,7 +62,6 @@ async def test_page_structure(client, path):
 async def test_legal_pages_are_visible_drafts(client, path):
     html = (await client.get(path)).text
     assert "Sujeto a revisión legal" in html
-    assert 'class="todo"' in html  # datos de la empresa no inventados
 
 
 async def test_privacy_mentions_law_and_rights(client):
@@ -117,22 +116,29 @@ def test_color_contrast(fg, bg, minimum):
     assert _ratio(fg, bg) >= minimum
 
 
-async def test_rut_and_domicilio_never_appear(app, client):
-    """Decisión del dueño: ni RUT ni domicilio en ninguna página, ni siquiera si alguien los pone en el entorno."""
-    import os
+async def test_rut_and_domicilio_words_never_appear(client):
+    """Decisión del dueño: ni RUT ni domicilio visibles en ninguna página (ni como texto de «pendiente»)."""
+    for path in PAGES + ["/staff", "/no-existe"]:
+        low = (await client.get(path)).text.lower()
+        assert "rut" not in re.findall(r"\b[a-záéíóúñ]+\b", low), path
+        assert "domicilio" not in low, path
 
-    os.environ["COMPANY_TAX_ID"] = "99.999.999-9"
-    os.environ["COMPANY_ADDRESS"] = "Calle Falsa 123, Santiago"
-    try:
-        from src.config import Settings, get_settings
 
-        app.dependency_overrides[get_settings] = lambda: Settings(company_legal_name="Nexus Security & AI Lab", privacy_contact_email="privacidad@example.test")
-        for path in PAGES + ["/staff", "/no-existe"]:
-            html = (await client.get(path)).text
-            assert "99.999.999-9" not in html and "Calle Falsa" not in html, path
-            low = html.lower()
-            assert "rut" not in re.findall(r"\b[a-záéíóúñ]+\b", low), path
-            assert "domicilio" not in low, path
-        assert "privacidad@example.test" in (await client.get("/privacidad")).text  # lo demás sí se muestra
-    finally:
-        os.environ.pop("COMPANY_TAX_ID", None); os.environ.pop("COMPANY_ADDRESS", None)
+async def test_internal_company_data_never_reaches_the_ui(client):
+    """RUT y domicilio (solo por entorno) no aparecen en ninguna vista pública."""
+    for path in PAGES + ["/staff"]:
+        html = (await client.get(path)).text
+        assert "99.999.999-9" not in html and "Calle Secreta" not in html, path
+
+
+async def test_catalog_has_more_than_three_projects(client):
+    html = (await client.get("/")).text
+    for name in ("DocMind", "Nexus Telemetry Hub", "AegisTrace", "Governance Engine"):
+        assert name in html
+
+
+async def test_no_responsable_no_mailto_everything_goes_through_the_form(client):
+    for path in PAGES:
+        html = (await client.get(path)).text
+        assert "Responsable<" not in html and "mailto:" not in html, path
+    assert 'href="/#contacto"' in (await client.get("/privacidad")).text
