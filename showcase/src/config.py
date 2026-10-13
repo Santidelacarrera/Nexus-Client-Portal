@@ -33,7 +33,7 @@ class Settings(BaseSettings):
     policy_version: str = "2026-10-borrador-1"
     # Identidad pública de la vitrina: solo el nombre de la entidad y un correo de privacidad se muestran en la web.
     # Sustituye el marcador por la razón social real SOLO si ella es la responsable del tratamiento.
-    company_legal_name: str = "Nexus Security SpA"
+    company_legal_name: str = "Nexus Security & AI Lab"
     privacy_contact_email: str = ""
 
     # Notificación OPCIONAL por correo al administrador (SMTP). Si falta SMTP_HOST o ADMIN_EMAIL queda desactivada;

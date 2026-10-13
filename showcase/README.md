@@ -14,10 +14,20 @@ python scripts/hash_password.py  # genera STAFF_PASSWORD_HASH (Argon2id)
 make run                         # usa --no-server-header: no se anuncia el servidor
 ```
 
+## Verificación en un comando
+
+```bash
+TEST_ADMIN_DSN=postgresql://admin:pw@localhost/postgres SHOWCASE_URL=http://localhost:8000 ./scripts/verify.sh
+```
+Ejecuta pytest, Jest, ESLint, Bandit, pip-audit, npm audit, Semgrep (si está instalado), axe y la comprobación de que no hay RUT/domicilio.
+
 ## Contenedor
 
 ```bash
 make docker-build && make docker-run   # usa --env-file .env (el hash Argon2 contiene '$')
+# Detrás de un proxy con CA propia / Docker Hub limitado:
+docker build --secret id=ca,src=ca-bundle.crt \
+  --build-arg NODE_IMAGE=mirror.gcr.io/library/node:22-slim --build-arg PYTHON_IMAGE=mirror.gcr.io/library/python:3.13-slim -t nexus-showcase .
 ```
 La imagen corre como usuario no root (uid 10001) y arranca con `--no-server-header`. La base de datos NO va en la imagen: apunta `DATABASE_URL` a tu PostgreSQL 16.
 
@@ -67,18 +77,22 @@ envían sin TLS (salvo a `localhost`).
 |---|---|
 | Consentimiento (Ley 21.719 / RGPD) | Implementado y probado: casilla explícita, registro con fecha, versión de política e id de sesión; retiro posible escribiendo al contacto de privacidad |
 | Páginas `/privacidad`, `/terminos`, `/cookies` | **Borradores. Sujetos a revisión legal por un abogado antes de publicar** |
-| Datos de la empresa (razón social, RUT, domicilio, correo) | Vacíos a propósito: se completan en `.env` |
+| Datos de la empresa | Solo el nombre comercial (`COMPANY_LEGAL_NAME`); RUT y domicilio, si se cargan, son internos y **el sitio nunca los muestra** (decisión del dueño; hay un test que lo impide). Un abogado debe confirmar que eso basta para identificar al responsable (Ley 21.719) |
 | Banner de cookies | Hoy el sitio no usa analítica ni terceros; el banner y su bloqueo previo ya están listos para cuando se añadan |
 | Retención | Mensajes: 12 meses (`purge_expired_contact_messages()`, ejecútala con cron) |
 
 ## Lo que NO está resuelto (leer antes de publicar)
 
-1. **Las páginas legales son borradores.** Muestran «Sujeto a revisión legal» y marcadores «pendiente de completar». Un abogado debe revisarlas y se deben fijar `COMPANY_LEGAL_NAME` (por defecto el marcador ficticio «Nexus Security SpA»: cámbialo por la razón social real si ella es la responsable del tratamiento) y `PRIVACY_CONTACT_EMAIL`. `COMPANY_TAX_ID` y `COMPANY_ADDRESS` son internos (SecretStr, solo por entorno) y la web no los muestra.
+1. **Las páginas legales son borradores.** Muestran «Sujeto a revisión legal» y marcadores «pendiente de completar». Un abogado debe revisarlas y se deben fijar `COMPANY_LEGAL_NAME` (por defecto el marcador ficticio «Nexus Security & AI Lab»: cámbialo por la razón social real si ella es la responsable del tratamiento) y `PRIVACY_CONTACT_EMAIL`. `COMPANY_TAX_ID` y `COMPANY_ADDRESS` son internos (SecretStr, solo por entorno) y la web no los muestra.
 2. **Sin testimonios ni reseñas**: no existen, y no se simulan. Los proyectos figuran como «Prototipo funcional».
 3. **Fuentes y DOMPurify auto-alojados** (Fontsource, licencia OFL; DOMPurify vendorizado) en vez del CDN de Google: así no se filtra la IP del visitante antes del consentimiento.
 4. **Diagramas SVG generados en servidor** en lugar de Mermaid: pasan la CSP (sin scripts en línea) y llevan título, descripción y alternativa en lista.
 5. **`eslint-plugin-jsx-a11y`** está configurado, pero este sitio no usa JSX, así que no analiza nada hoy; la accesibilidad se verifica con axe y `tests/test_pages.py`.
 6. **Semgrep `p/owasp-top-ten` no se pudo ejecutar** en el entorno de desarrollo (el registro `semgrep.dev` estaba bloqueado). Ejecútalo en CI/local: `make security`.
 7. **`npm audit` completo** informa vulnerabilidades en herramientas de *desarrollo* (jest 29, tailwind 3, cadena de babel); no se distribuyen. Las dependencias de producción (`--omit=dev`) están en 0.
-8. **Dockerfile no construido**: el entorno de desarrollo tenía el cliente Docker pero no el daemon. Sí se reprodujo su secuencia paso a paso (`npm ci && npm run build`, `pip install -r requirements.txt`, arranque con el mismo comando) en un directorio limpio y la app respondió. Además, el rate limit usa memoria (por proceso): con varios workers define `RATELIMIT_STORAGE_URI` (Redis).
+8. **Dockerfile**: construido y ejecutado (uid 10001) con el formulario probado de punta a punta; ver `docs/BITACORA.md`. El rate limit usa memoria por proceso: con varios workers define `RATELIMIT_STORAGE_URI` (Redis).
 9. **Contraste del anillo de foco y bordes**: verificado por cálculo (≥3:1), no por auditoría visual humana.
+
+## Qué falta para producción
+
+Ver `docs/BITACORA.md` (sección «Pendientes para Santiago»): revisión legal, datos de empresa, SMTP real, dominio + TLS + HSTS, Redis para rate limit, cron de retención, respaldo de la base y Semgrep.

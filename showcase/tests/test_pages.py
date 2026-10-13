@@ -116,6 +116,14 @@ def test_color_contrast(fg, bg, minimum):
     assert _ratio(fg, bg) >= minimum
 
 
+async def test_rut_and_domicilio_words_never_appear(client):
+    """Decisión del dueño: ni RUT ni domicilio visibles en ninguna página (ni como texto de «pendiente»)."""
+    for path in PAGES + ["/staff", "/no-existe"]:
+        low = (await client.get(path)).text.lower()
+        assert "rut" not in re.findall(r"\b[a-záéíóúñ]+\b", low), path
+        assert "domicilio" not in low, path
+
+
 async def test_internal_company_data_never_reaches_the_ui(client):
     """RUT y domicilio (solo por entorno) no aparecen en ninguna vista pública."""
     for path in PAGES + ["/staff"]:

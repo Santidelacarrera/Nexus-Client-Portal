@@ -1,4 +1,4 @@
-.PHONY: install build run test lint security db-roles docker-build docker-run
+.PHONY: install build run test lint security db-roles docker-build docker-run verify
 PY ?= python
 
 install:
@@ -32,3 +32,6 @@ docker-build:
 
 docker-run:
 	docker run --rm -p 8000:8000 --env-file .env nexus-showcase
+
+verify:
+	./scripts/verify.sh

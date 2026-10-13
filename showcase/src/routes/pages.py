@@ -16,7 +16,7 @@ def site(settings: Settings) -> dict:
     """Solo valores públicos: la plantilla nunca recibe secretos ni cadenas de conexión."""
     return {
         "policy_version": settings.policy_version,
-        "legal_name": settings.company_legal_name.strip() or "Nexus Security SpA",
+        "legal_name": settings.company_legal_name.strip() or "Nexus Security & AI Lab",
     }
 
 

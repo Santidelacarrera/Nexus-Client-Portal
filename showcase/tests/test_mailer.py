@@ -14,7 +14,7 @@ ARGS = dict(ref="NX-ABCD1234", name="Ana Pérez", email="ana@example.com", messa
 
 
 def cfg(**kw) -> Settings:
-    base = dict(smtp_host="smtp.test", admin_email="admin@example.test", smtp_user="mailer", smtp_password=PASSWORD)
+    base = dict(smtp_host="smtp.test", admin_email="admin@example.com", smtp_user="mailer", smtp_password=PASSWORD)
     return Settings(**{**base, **kw})
 
 
@@ -51,7 +51,7 @@ def test_disabled_without_config_warns_and_sends_nothing(caplog):
 def test_message_goes_only_to_admin_with_basic_data_and_law_notice():
     assert mailer.notify_new_message(cfg(), **ARGS) is True
     msg = FakeSMTP.sent[0]
-    assert msg["To"] == "admin@example.test" and msg["Cc"] is None and msg["Bcc"] is None
+    assert msg["To"] == "admin@example.com" and msg["Cc"] is None and msg["Bcc"] is None
     body = msg.get_content()
     for needle in ("Ana Pérez", "ana@example.com", "Necesito una cotización.", "NX-ABCD1234", "base de datos interna", "21.719"):
         assert needle in body
@@ -105,3 +105,13 @@ async def test_contact_still_succeeds_when_smtp_is_down(app, visitor, admin_conn
         app.dependency_overrides.pop(get_settings, None)
     assert r.status_code == 201  # el servicio no se rompe
     assert await admin_conn.fetchval("SELECT count(*) FROM contact_messages WHERE email = 'caida@example.com'") == 1
+
+
+def test_accents_survive_servers_without_8bitmime():
+    """Regresión: sin 8BITMIME smtplib degradaba las tildes; el cuerpo va en quoted-printable UTF-8."""
+    import email
+    from email import policy
+
+    wire = mailer.build_message(cfg(), **ARGS).as_bytes(policy=policy.SMTP.clone(cte_type="7bit"))
+    assert wire.isascii()
+    assert "Ana Pérez" in email.message_from_bytes(wire, policy=policy.default).get_content()

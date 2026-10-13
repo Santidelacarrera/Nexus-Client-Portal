@@ -62,7 +62,8 @@ def build_message(settings: Settings, *, ref: str, name: str, email: str, messag
         "--\n"
         "El registro oficial de esta consulta y la evidencia del consentimiento del titular (fecha, versión de la política\n"
         "y sesión) están resguardados en la base de datos interna, conforme a la Ley N.º 21.719. Este correo es solo un\n"
-        "aviso: no lo reenvíes ni lo conserves fuera de los plazos de retención de la política de privacidad.\n"
+        "aviso: no lo reenvíes ni lo conserves fuera de los plazos de retención de la política de privacidad.\n",
+        charset="utf-8", cte="quoted-printable",  # válido aunque el servidor no ofrezca 8BITMIME (si no, se corrompen las tildes)
     )
     return msg
 
